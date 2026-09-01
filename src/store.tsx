@@ -28,7 +28,9 @@ const Context = createContext<Store | undefined>(undefined);
 export function GrocefyProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<UserSettings>({ defaultCurrency: 'XAF' });
   const [lists, setLists] = useState(initialLists);
-  const [history, setHistory] = useState<PriceHistoryEntry[]>([]);
+  const [history, setHistory] = useState<PriceHistoryEntry[]>([
+    { id: 'soap-history', name: 'Laundry soap', amount: 8000, currencyCode: 'XAF', purchaseDate: '2026-09-01' }
+  ]);
   const [ready, setReady] = useState(false);
   useEffect(() => { AsyncStorage.getItem(key).then((saved) => { if (saved) { const parsed = JSON.parse(saved); setSettings(parsed.settings); setLists(parsed.lists); setHistory(parsed.history); } }).catch(() => undefined).finally(() => setReady(true)); }, []);
   useEffect(() => { if (ready) AsyncStorage.setItem(key, JSON.stringify({ settings, lists, history })).catch(() => undefined); }, [settings, lists, history, ready]);
@@ -37,12 +39,13 @@ export function GrocefyProvider({ children }: { children: React.ReactNode }) {
     setDefaultCurrency: (currency) => setSettings({ defaultCurrency: currency }),
     addList: (data) => setLists((current) => [{ ...data, id: String(Date.now()), items: [] }, ...current]),
     addItem: (listId, item) => setLists((current) => current.map((list) => list.id === listId ? { ...list, items: [...list.items, { ...item, id: String(Date.now()) }] } : list)),
-    purchaseItem: (listId, itemId, actual) => setLists((current) => current.map((list) => {
-      if (list.id !== listId) return list;
-      const item = list.items.find((entry) => entry.id === itemId);
-      if (item) setHistory((old) => [{ id: String(Date.now()), name: item.name, amount: actual, currencyCode: list.currencyCode, purchaseDate: new Date().toISOString().slice(0, 10) }, ...old]);
-      return { ...list, items: list.items.map((entry) => entry.id === itemId ? { ...entry, actual, purchasedAt: new Date().toISOString() } : entry) };
-    })),
+    purchaseItem: (listId, itemId, actual) => {
+      const list = lists.find((entry) => entry.id === listId);
+      const item = list?.items.find((entry) => entry.id === itemId);
+      const purchaseDate = new Date().toISOString();
+      if (list && item) setHistory((old) => [{ id: String(Date.now()), name: item.name, amount: actual, currencyCode: list.currencyCode, purchaseDate: purchaseDate.slice(0, 10) }, ...old]);
+      setLists((current) => current.map((entry) => entry.id === listId ? { ...entry, items: entry.items.map((listItem) => listItem.id === itemId ? { ...listItem, actual, purchasedAt: purchaseDate } : listItem) } : entry));
+    },
   }), [settings, lists, history, ready]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
