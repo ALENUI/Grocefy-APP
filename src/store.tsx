@@ -1,17 +1,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { CurrencyCode } from './currency';
-import { ListItem, PriceHistoryEntry, ShoppingList, UserSettings } from './models';
+import { CollaborationRole, GroupMember, ListItem, PriceHistoryEntry, ShoppingGroup, ShoppingList, UserSettings } from './models';
 
 type Store = {
   settings: UserSettings;
   lists: ShoppingList[];
   history: PriceHistoryEntry[];
+  groups: ShoppingGroup[];
   ready: boolean;
   setDefaultCurrency: (currency: CurrencyCode) => void;
   addList: (data: Omit<ShoppingList, 'id' | 'items'>) => void;
   addItem: (listId: string, item: Omit<ListItem, 'id'>) => void;
   purchaseItem: (listId: string, itemId: string, actual: number) => void;
+  addGroup: (name: string) => void;
+  addGroupMember: (groupId: string, name: string, role: CollaborationRole) => void;
 };
 
 const initialLists: ShoppingList[] = [
@@ -23,6 +26,7 @@ const initialLists: ShoppingList[] = [
   ] }
 ];
 const key = '@grocefy/state/v1';
+const initialGroups: ShoppingGroup[] = [{ id: 'house', name: 'House Shopping', members: [{ id: 'owner', name: 'You', role: 'Owner' }, { id: 'partner', name: 'Alex', role: 'Partner' }] }];
 const Context = createContext<Store | undefined>(undefined);
 
 export function GrocefyProvider({ children }: { children: React.ReactNode }) {
@@ -31,11 +35,12 @@ export function GrocefyProvider({ children }: { children: React.ReactNode }) {
   const [history, setHistory] = useState<PriceHistoryEntry[]>([
     { id: 'soap-history', name: 'Laundry soap', amount: 8000, currencyCode: 'XAF', purchaseDate: '2026-09-01' }
   ]);
+  const [groups, setGroups] = useState<ShoppingGroup[]>(initialGroups);
   const [ready, setReady] = useState(false);
-  useEffect(() => { AsyncStorage.getItem(key).then((saved) => { if (saved) { const parsed = JSON.parse(saved); setSettings(parsed.settings); setLists(parsed.lists); setHistory(parsed.history); } }).catch(() => undefined).finally(() => setReady(true)); }, []);
-  useEffect(() => { if (ready) AsyncStorage.setItem(key, JSON.stringify({ settings, lists, history })).catch(() => undefined); }, [settings, lists, history, ready]);
+  useEffect(() => { AsyncStorage.getItem(key).then((saved) => { if (saved) { const parsed = JSON.parse(saved); if (parsed.settings) setSettings(parsed.settings); if (parsed.lists) setLists(parsed.lists); if (parsed.history) setHistory(parsed.history); if (parsed.groups) setGroups(parsed.groups); } }).catch(() => undefined).finally(() => setReady(true)); }, []);
+  useEffect(() => { if (ready) AsyncStorage.setItem(key, JSON.stringify({ settings, lists, history, groups })).catch(() => undefined); }, [settings, lists, history, groups, ready]);
   const value = useMemo<Store>(() => ({
-    settings, lists, history, ready,
+    settings, lists, history, groups, ready,
     setDefaultCurrency: (currency) => setSettings({ defaultCurrency: currency }),
     addList: (data) => setLists((current) => [{ ...data, id: String(Date.now()), items: [] }, ...current]),
     addItem: (listId, item) => setLists((current) => current.map((list) => list.id === listId ? { ...list, items: [...list.items, { ...item, id: String(Date.now()) }] } : list)),
@@ -46,7 +51,9 @@ export function GrocefyProvider({ children }: { children: React.ReactNode }) {
       if (list && item) setHistory((old) => [{ id: String(Date.now()), name: item.name, amount: actual, currencyCode: list.currencyCode, purchaseDate: purchaseDate.slice(0, 10) }, ...old]);
       setLists((current) => current.map((entry) => entry.id === listId ? { ...entry, items: entry.items.map((listItem) => listItem.id === itemId ? { ...listItem, actual, purchasedAt: purchaseDate } : listItem) } : entry));
     },
-  }), [settings, lists, history, ready]);
+    addGroup: (name) => setGroups((current) => [{ id: String(Date.now()), name, members: [{ id: `${Date.now()}-owner`, name: 'You', role: 'Owner' }] }, ...current]),
+    addGroupMember: (groupId, name, role) => setGroups((current) => current.map((group) => group.id === groupId ? { ...group, members: [...group.members, { id: String(Date.now()), name, role }] } : group))
+  }), [settings, lists, history, groups, ready]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export const useGrocefy = () => { const store = useContext(Context); if (!store) throw new Error('GrocefyProvider missing'); return store; };

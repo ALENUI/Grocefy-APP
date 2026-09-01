@@ -6,12 +6,13 @@ Grocefy is a collaborative grocery and shopping management app for individuals, 
 
 - **Shopping lists:** create lists and categorize them as Food, Kitchen, Bathroom, Cleaning, Household, Personal Care, Office Supplies, or custom.
 - **Shopping groups:** organize lists by a shared purpose, such as House Shopping or Office Shopping.
+- **Local collaboration prototype:** assign local group members the Viewer, Editor, Partner, or Owner role; secure account-backed sharing is the next backend phase.
 - **Budget and purchase tracking:** set a budget per item, confirm actual purchase prices, and see savings or overruns.
 - **Price history:** purchased entries preserve item name, amount, ISO 4217 currency code, and purchase date.
 - **Currency preferences:** choose a default currency for new lists and override it per list. Existing lists and purchases retain their original currency.
 - **Finance reports:** see budget and actual totals separated by currency; Grocefy never combines currencies without conversion.
 
-Collaboration roles (Viewer, Editor, Partner, and Owner), sharing, secure authentication, and a server-backed database are planned expansion points; they are not yet implemented in this local MVP.
+Secure account-backed sharing, authentication, and a server-backed database are planned expansion points; they are not yet implemented in this local MVP.
 
 ## Technology
 
