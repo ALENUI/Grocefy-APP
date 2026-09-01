@@ -16,7 +16,27 @@ Secure account-backed sharing, authentication, and a server-backed database are 
 
 ## Technology
 
-Grocefy is built with React, React Native, Expo, TypeScript, Expo Router, and AsyncStorage for local MVP persistence.
+Grocefy is built with React, React Native, Expo, TypeScript, Expo Router, AsyncStorage for local MVP persistence, and a Supabase/PostgreSQL backend foundation.
+
+## Backend
+
+The backend is designed for Supabase Auth, PostgreSQL, Row Level Security (RLS), and a secure database function for purchase finalization. Its schema, policies, indexes, currency registry, financial constraints, and seed data are version-controlled in `supabase/`.
+
+The Expo app accesses Supabase only through `src/services/`; UI components do not contain raw database queries. The `purchase_list_item` database function is the authority for purchase creation, price history, and item finalization in one transaction.
+
+### Configure Supabase
+
+1. Copy `.env.example` to `.env`.
+2. Set `EXPO_PUBLIC_SUPABASE_ANON_KEY` to the project's **publishable/anon** key. Never use a service-role key in Expo.
+3. Install and authenticate the Supabase CLI, link the project, then apply the schema and seed data:
+
+```bash
+supabase link --project-ref bsffllulzwidnpdhzroq
+supabase db push
+supabase db execute --file supabase/seed/seed.sql
+```
+
+RLS is enabled by the migration. Test policies and the purchase transaction against a non-production project before enabling the mobile data services.
 
 ## Getting Started
 
