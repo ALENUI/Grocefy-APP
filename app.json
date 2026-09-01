@@ -3,6 +3,7 @@
     "name": "Grocefy",
     "slug": "grocefy",
     "version": "1.0.0",
+    "platforms": ["android", "ios"],
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "grocefy",
