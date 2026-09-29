@@ -1,6 +1,6 @@
 -- Assertion and session helpers shared by the *.test.sql files.
 create schema tests;
-grant usage on schema tests to anon, authenticated;
+grant usage on schema tests to anon, authenticated, service_role;
 
 -- Creates an auth user (and, through the signup trigger, a profile) addressable as tests.id('<username>').
 create function tests.create_user(username text, currency text default 'XAF', confirmed boolean default true) returns uuid language plpgsql as $$
@@ -55,7 +55,7 @@ begin
   if affected <> 0 then raise exception 'ASSERTION FAILED: % (% rows affected)', description, affected; end if;
 end $$;
 
-grant execute on all functions in schema tests to anon, authenticated;
+grant execute on all functions in schema tests to anon, authenticated, service_role;
 
 -- Household fixture used by most suites:
 --   House Shopping group (10…01, XAF) owned by `owner`, with `grouppartner` as a group partner.
@@ -79,4 +79,4 @@ begin
     ('40000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002', 2, 3000, tests.id('owner'));
 end $$;
 
-grant execute on all functions in schema tests to anon, authenticated;
+grant execute on all functions in schema tests to anon, authenticated, service_role;
