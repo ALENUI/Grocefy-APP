@@ -1211,6 +1211,25 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      search_products: {
+        Args: { query: string; result_limit?: number };
+        Returns: {
+          archived_at: string | null;
+          created_at: string;
+          default_category_id: string | null;
+          id: string;
+          name: string;
+          notes: string | null;
+          owner_id: string;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'products';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       shares_resource_with: { Args: { other_user: string }; Returns: boolean };
       wants_email: { Args: { user_id: string }; Returns: boolean };
     };
