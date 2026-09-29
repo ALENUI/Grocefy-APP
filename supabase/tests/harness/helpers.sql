@@ -3,11 +3,12 @@ create schema tests;
 grant usage on schema tests to anon, authenticated;
 
 -- Creates an auth user (and, through the signup trigger, a profile) addressable as tests.id('<username>').
-create function tests.create_user(username text, currency text default 'XAF') returns uuid language plpgsql as $$
+create function tests.create_user(username text, currency text default 'XAF', confirmed boolean default true) returns uuid language plpgsql as $$
 declare new_id uuid;
 begin
-  insert into auth.users (email, raw_user_meta_data)
-  values (username || '@example.test', jsonb_build_object('username', username, 'default_currency', currency)) returning id into new_id;
+  insert into auth.users (email, email_confirmed_at, raw_user_meta_data)
+  values (username || '@example.test', case when confirmed then now() end, jsonb_build_object('username', username, 'default_currency', currency))
+  returning id into new_id;
   perform set_config('tests.' || username, new_id::text, false);
   return new_id;
 end $$;

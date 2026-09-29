@@ -130,9 +130,12 @@ export type Database = {
           invitee_user_id: string | null;
           inviter_id: string;
           resource_id: string;
+          resource_name: string | null;
           resource_type: Database['public']['Enums']['invitation_resource'];
+          responded_at: string | null;
           role: Database['public']['Enums']['member_role'];
           status: Database['public']['Enums']['member_status'];
+          is_invitee: boolean | null;
         };
         Insert: {
           accepted_at?: string | null;
@@ -143,7 +146,9 @@ export type Database = {
           invitee_user_id?: string | null;
           inviter_id: string;
           resource_id: string;
+          resource_name?: string | null;
           resource_type: Database['public']['Enums']['invitation_resource'];
+          responded_at?: string | null;
           role: Database['public']['Enums']['member_role'];
           status?: Database['public']['Enums']['member_status'];
         };
@@ -156,7 +161,9 @@ export type Database = {
           invitee_user_id?: string | null;
           inviter_id?: string;
           resource_id?: string;
+          resource_name?: string | null;
           resource_type?: Database['public']['Enums']['invitation_resource'];
+          responded_at?: string | null;
           role?: Database['public']['Enums']['member_role'];
           status?: Database['public']['Enums']['member_status'];
         };
@@ -961,6 +968,60 @@ export type Database = {
       can_manage_list: { Args: { target_list_id: string }; Returns: boolean };
       can_purchase_list: { Args: { target_list_id: string }; Returns: boolean };
       can_view_list: { Args: { target_list_id: string }; Returns: boolean };
+      cancel_invitation: {
+        Args: { target_invitation_id: string };
+        Returns: {
+          accepted_at: string | null;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          invitee_email: string | null;
+          invitee_user_id: string | null;
+          inviter_id: string;
+          resource_id: string;
+          resource_name: string | null;
+          resource_type: Database['public']['Enums']['invitation_resource'];
+          responded_at: string | null;
+          role: Database['public']['Enums']['member_role'];
+          status: Database['public']['Enums']['member_status'];
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'invitations';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_invitation: {
+        Args: {
+          invitee: string;
+          target_resource_id: string;
+          target_resource_type: Database['public']['Enums']['invitation_resource'];
+          target_role: Database['public']['Enums']['member_role'];
+        };
+        Returns: {
+          accepted_at: string | null;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          invitee_email: string | null;
+          invitee_user_id: string | null;
+          inviter_id: string;
+          resource_id: string;
+          resource_name: string | null;
+          resource_type: Database['public']['Enums']['invitation_resource'];
+          responded_at: string | null;
+          role: Database['public']['Enums']['member_role'];
+          status: Database['public']['Enums']['member_status'];
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'invitations';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      current_confirmed_email: { Args: Record<PropertyKey, never>; Returns: string };
       get_group_role: { Args: { target_group_id: string }; Returns: Database['public']['Enums']['member_role'] };
       get_list_role: { Args: { target_list_id: string }; Returns: Database['public']['Enums']['member_role'] };
       get_price_suggestion: {
@@ -974,7 +1035,19 @@ export type Database = {
         }[];
       };
       is_client_request: { Args: Record<PropertyKey, never>; Returns: boolean };
+      is_invitee: { Args: { invitation: Database['public']['Tables']['invitations']['Row'] }; Returns: boolean };
       is_username_available: { Args: { candidate: string }; Returns: boolean };
+      notify_user: {
+        Args: {
+          notification_message: string;
+          notification_title: string;
+          notification_type: string;
+          recipient: string;
+          target_id: string;
+          target_type: string;
+        };
+        Returns: undefined;
+      };
       purchase_list_item: {
         Args: { actual_amount?: number; target_item_id: string; use_budgeted_amount?: boolean };
         Returns: {
@@ -1000,6 +1073,30 @@ export type Database = {
         };
       };
       require_active_currency: { Args: { code: string }; Returns: undefined };
+      respond_to_invitation: {
+        Args: { accept: boolean; target_invitation_id: string };
+        Returns: {
+          accepted_at: string | null;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          invitee_email: string | null;
+          invitee_user_id: string | null;
+          inviter_id: string;
+          resource_id: string;
+          resource_name: string | null;
+          resource_type: Database['public']['Enums']['invitation_resource'];
+          responded_at: string | null;
+          role: Database['public']['Enums']['member_role'];
+          status: Database['public']['Enums']['member_status'];
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'invitations';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       shares_resource_with: { Args: { other_user: string }; Returns: boolean };
     };
     Enums: {
