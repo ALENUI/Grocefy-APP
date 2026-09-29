@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test:db": "node scripts/test-db.mjs",
     "db:types": "supabase gen types typescript --linked --schema public > src/services/database.types.ts",
-    "test:services": "node scripts/test-services.cjs"
+    "test:services": "node scripts/test-services.cjs",
+    "typecheck:functions": "tsc -p supabase/functions/tsconfig.json",
+    "test:email": "node scripts/test-email.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",

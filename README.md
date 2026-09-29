@@ -37,12 +37,14 @@ The Expo app accesses Supabase only through `src/services/` (auth, settings, cat
   | Create lists in a group | | | ✓ | ✓ |
   | Change roles, remove members, move/archive a list, change its currency | | | | ✓ |
 
-- **Sharing** works only through invitations. An owner invites by username, user ID, or email with `create_invitation`. The invitee accepts or declines with `respond_to_invitation`, and the owner or inviter can withdraw a pending invite with `cancel_invitation`. Invitations expire after 7 days, and both sides get in-app notifications. Email invitations never reveal whether an address has an account, and they can only be accepted from a confirmed email address. Owners change roles or remove members, and members can leave. Delivering invitation emails (an Edge Function with a transactional email provider) is not implemented yet.
+- **Sharing** works only through invitations. An owner invites by username, user ID, or email with `create_invitation`. The invitee accepts or declines with `respond_to_invitation`, and the owner or inviter can withdraw a pending invite with `cancel_invitation`. Invitations expire after 7 days, and both sides get in-app notifications. Email invitations never reveal whether an address has an account, and they can only be accepted from a confirmed email address. Owners change roles or remove members, and members can leave.
 - **Purchases** can only be created by the `purchase_list_item` function. It runs as one transaction that checks permissions, records the purchase and price history, and marks the item purchased. The purchaser, currency, and budget snapshot come from the database, never from the client.
 - **History is immutable.** Purchases and price history cannot be updated or deleted by any role, purchased items are frozen, and lists, groups, products, and categories are archived rather than deleted.
 - **Currency:** every list, purchase, price-history entry, and report stores an ISO 4217 code. A list's currency is locked once it has items. Price suggestions (`get_price_suggestion`) only use prices recorded in the list's currency, and totals are always grouped per currency.
 - **Monthly finance reports** compare budgeted and purchased amounts by category, with variance = purchased − budgeted (negative means under budget). `generate_monthly_report` builds personal, group, or list reports; group and list reports are available only to owners and partners. There is one report per currency, because amounts in different currencies are never added together. Month boundaries follow the report owner's timezone setting (UTC by default). Once a month has ended, its report is final: generating it again returns the issued report unchanged, even if a category is later renamed.
 - **Scheduled reports:** where `pg_cron` is available (Supabase), the migration schedules `private.generate_previous_month_reports()` at 14:00 UTC on the 1st of each month. By then the previous month has ended in every timezone. The job finalizes group and personal reports and notifies owners and partners once; re-running it is safe.
+
+- **Email** is delivered through an outbox. New invitations and finalized monthly reports queue a row in `email_outbox`, and the database never calls an email provider directly. The `send-emails` Edge Function claims due rows (locked, so concurrent runs never double-send), renders each email from current data, and sends it through a provider interface (Resend, or a log provider for development). Invitations that were answered, cancelled, or have expired in the meantime are skipped. Failed sends retry with backoff (1, 4, 16, 64 minutes) up to 5 attempts. Invitation emails contain only the resource name, role, and inviter, and every amount in a report email carries its currency code. Users can turn email off in Settings; in-app notifications are unaffected.
 
 ### Configure Supabase
 
@@ -57,15 +59,34 @@ supabase db push
 
 4. In the Supabase dashboard under **Authentication → URL Configuration**, add `grocefy://**` to the redirect URLs (and your Expo Go URL, e.g. `exp://**`, during development). Email confirmation and password-reset links return to the app through these deep links, and must be opened on the device that requested them.
 
+5. Email delivery (optional until you want emails sent). Deploy the worker, set its secrets, and give the scheduler its URL and secret in Vault:
+
+```bash
+supabase functions deploy send-emails
+supabase secrets set EMAIL_WORKER_SECRET=<long random string> RESEND_API_KEY=<key> EMAIL_FROM="Grocefy <notifications@your-domain>" APP_URL=grocefy://
+```
+
+```sql
+-- In the SQL editor. The pg_cron job created by the migration stays idle until both secrets exist.
+select vault.create_secret('https://bsffllulzwidnpdhzroq.supabase.co', 'grocefy_project_url');
+select vault.create_secret('<same EMAIL_WORKER_SECRET>', 'grocefy_email_worker_secret');
+```
+
+The sending domain must be verified in Resend. For local development, copy `supabase/functions/.env.example` to `supabase/functions/.env` (log provider, no emails leave the machine).
+
 The migrations also create the reference data (currency registry and default categories); `supabase/seed/seed.sql` is reserved for demo-only records. After a schema change, regenerate the client types with `npm run db:types`.
 
 ### Database tests
 
-`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), and purchasers keeping their history after leaving a list.
+`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, and the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery).
+
+### Email tests
+
+`npm run test:email` unit-tests the Edge Function modules under Node: templates (escaping, currency on every amount), the Resend provider, provider selection, and the worker's send/skip/failure handling. `npm run typecheck:functions` type-checks the Deno code without the Deno toolchain.
 
 ### Service end-to-end tests
 
-`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, monthly reports, and leaving a list. It refuses to run against a non-local API.
+`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
 
 ## Getting Started
 
@@ -102,7 +123,6 @@ Grocefy is under active development. Accounts, shared lists and groups, purchasi
 
 ## Roadmap
 
-- Invitation and monthly report emails (Edge Functions with a transactional email provider)
 - Realtime list updates while shopping together
 - Offline shopping and push notifications
 - Recurring lists, receipt scanning, AI suggestions, price trends, and store comparison
