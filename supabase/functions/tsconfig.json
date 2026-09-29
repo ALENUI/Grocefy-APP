@@ -1,0 +1,9 @@
+{
+  // Type-checks the Deno Edge Functions with the project's TypeScript (npm run typecheck:functions).
+  "compilerOptions": {
+    "strict": true, "noEmit": true, "target": "ES2022", "lib": ["ES2022", "DOM"], "module": "ESNext", "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true, "skipLibCheck": true, "types": [],
+    "paths": { "npm:@supabase/supabase-js@2": ["../../node_modules/@supabase/supabase-js"] }
+  },
+  "include": ["**/*.ts"]
+}
