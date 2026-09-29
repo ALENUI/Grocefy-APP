@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Switch, Text, View } from 'react-native';
 import { currencyLabel } from '@/src/currency';
@@ -29,6 +30,7 @@ export default function Settings() {
       <Switch accessibilityLabel="Email notifications" value={settings?.email_notifications ?? true} disabled={busy || !settings} trackColor={{ true: palette.green }}
         onValueChange={(enabled) => run(async () => { await setEmailNotifications(userId, enabled); await refreshAccount(); })}/></View>
     </Card>
+    <Button label="Manage categories" variant="soft" icon="pricetags-outline" onPress={() => router.push('/categories')}/>
     <Button label="Sign out" variant="danger" icon="log-out-outline" onPress={() => signOut().catch((caught) => Alert.alert('Could not sign out', friendlyError(caught)))}/>
   </Screen>;
 }
