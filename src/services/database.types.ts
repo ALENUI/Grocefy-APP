@@ -391,6 +391,8 @@ export type Database = {
           list_id: string | null;
           month: number;
           owner_id: string;
+          period_end: string | null;
+          period_start: string | null;
           total_budget: number;
           total_purchased: number;
           total_variance: number;
@@ -405,6 +407,8 @@ export type Database = {
           list_id?: string | null;
           month: number;
           owner_id: string;
+          period_end?: string | null;
+          period_start?: string | null;
           total_budget: number;
           total_purchased: number;
           total_variance: number;
@@ -419,6 +423,8 @@ export type Database = {
           list_id?: string | null;
           month?: number;
           owner_id?: string;
+          period_end?: string | null;
+          period_start?: string | null;
           total_budget?: number;
           total_purchased?: number;
           total_variance?: number;
@@ -1022,6 +1028,31 @@ export type Database = {
         };
       };
       current_confirmed_email: { Args: Record<PropertyKey, never>; Returns: string };
+      generate_monthly_report: {
+        Args: { target_group_id?: string; target_list_id?: string; target_month: number; target_year: number };
+        Returns: {
+          created_at: string;
+          currency_code: string;
+          generated_at: string;
+          group_id: string | null;
+          id: string;
+          list_id: string | null;
+          month: number;
+          owner_id: string;
+          period_end: string | null;
+          period_start: string | null;
+          total_budget: number;
+          total_purchased: number;
+          total_variance: number;
+          year: number;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'monthly_reports';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       get_group_role: { Args: { target_group_id: string }; Returns: Database['public']['Enums']['member_role'] };
       get_list_role: { Args: { target_list_id: string }; Returns: Database['public']['Enums']['member_role'] };
       get_price_suggestion: {
