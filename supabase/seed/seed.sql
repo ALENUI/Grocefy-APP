@@ -1,0 +1,2 @@
+-- Development seed data. Reference data (currencies and default categories) is created by the migrations so
+-- that every environment has it; add demo-only records here.

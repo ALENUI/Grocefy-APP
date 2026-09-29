@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Grocefy",
+    "slug": "grocefy",
+    "version": "1.0.0",
+    "platforms": ["android", "ios"],
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "grocefy",
+    "plugins": ["expo-router"],
+    "experiments": { "typedRoutes": true },
+    "android": { "package": "com.grocefy.app" },
+    "ios": { "bundleIdentifier": "com.grocefy.app" }
+  }
+}
