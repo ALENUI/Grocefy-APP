@@ -6,23 +6,23 @@ Grocefy is a collaborative grocery and shopping management app for individuals, 
 
 - **Shopping lists:** create lists and categorize them as Food, Kitchen, Bathroom, Cleaning, Household, Personal Care, Office Supplies, or custom.
 - **Shopping groups:** organize lists by a shared purpose, such as House Shopping or Office Shopping.
-- **Local collaboration prototype:** assign local group members the Viewer, Editor, Partner, or Owner role; secure account-backed sharing is the next backend phase.
+- **Accounts:** sign up with a username and default currency, sign in, and reset a forgotten password by email.
+- **Collaboration:** invite people to a list or group by username or email as Viewer, Editor, or Partner; they accept or decline from their inbox.
 - **Budget and purchase tracking:** set a budget per item, confirm actual purchase prices, and see savings or overruns.
-- **Price history:** purchased entries preserve item name, amount, ISO 4217 currency code, and purchase date.
+- **Price history:** every purchase records the amount, ISO 4217 currency code, and date. When an item is added again, the last price paid in the list's currency is suggested.
+- **Purchased history:** purchases grouped by day, newest first.
 - **Currency preferences:** choose a default currency for new lists and override it per list. Existing lists and purchases retain their original currency.
-- **Finance reports:** see budget and actual totals separated by currency; Grocefy never combines currencies without conversion.
-
-Secure account-backed sharing, authentication, and a server-backed database are planned expansion points; they are not yet implemented in this local MVP.
+- **Finance reports:** monthly budget-vs-actual statements by category, for your own purchases or a whole group, with one statement per currency. Grocefy never combines currencies without conversion.
 
 ## Technology
 
-Grocefy is built with React, React Native, Expo, TypeScript, Expo Router, AsyncStorage for local MVP persistence, and a Supabase/PostgreSQL backend foundation.
+Grocefy is built with React, React Native, Expo, TypeScript, Expo Router, and a Supabase backend (PostgreSQL, Supabase Auth, Row Level Security). AsyncStorage persists the signed-in session on the device.
 
 ## Backend
 
 The backend is designed for Supabase Auth, PostgreSQL, Row Level Security (RLS), and a secure database function for purchase finalization. Its schema, policies, indexes, currency registry, financial constraints, and seed data are version-controlled in `supabase/`.
 
-The Expo app accesses Supabase only through `src/services/` (auth, settings, lists, purchases); UI components do not contain raw database queries. Database types in `src/services/database.types.ts` are generated from the schema. The screens still run on the local AsyncStorage store; connecting them to these services is the next phase.
+The Expo app accesses Supabase only through `src/services/` (auth, settings, categories, groups, lists, purchases, sharing, finance); screens do not contain raw database queries. Database types in `src/services/database.types.ts` are generated from the schema. The UI shows or hides actions according to the user's role, but the database enforces every rule regardless.
 
 ### Security and financial model
 
@@ -55,11 +55,17 @@ supabase link --project-ref bsffllulzwidnpdhzroq
 supabase db push
 ```
 
+4. In the Supabase dashboard under **Authentication → URL Configuration**, add `grocefy://**` to the redirect URLs (and your Expo Go URL, e.g. `exp://**`, during development). Email confirmation and password-reset links return to the app through these deep links, and must be opened on the device that requested them.
+
 The migrations also create the reference data (currency registry and default categories); `supabase/seed/seed.sql` is reserved for demo-only records. After a schema change, regenerate the client types with `npm run db:types`.
 
 ### Database tests
 
-`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, and monthly reports (category variance, currency separation, idempotency, finality, timezones, and access).
+`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), and purchasers keeping their history after leaving a list.
+
+### Service end-to-end tests
+
+`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, monthly reports, and leaving a list. It refuses to run against a non-local API.
 
 ## Getting Started
 
@@ -68,7 +74,7 @@ The migrations also create the reference data (currency registry and default cat
 - Node.js LTS (20.11 or newer)
 - npm
 - Expo Go, Android Studio, or an iOS development environment
-- Docker (only for `npm run test:db`) and the Supabase CLI (for migrations)
+- Docker (for `npm run test:db` and a local Supabase stack) and the Supabase CLI (for migrations)
 
 ### Installation
 
@@ -84,7 +90,7 @@ npm install
 npx expo start
 ```
 
-Use `npm run android`, `npm run ios`, or `npm run web` for a platform-specific start.
+Use `npm run android` or `npm run ios` for a platform-specific start. The app requires the Supabase configuration above; without it, it shows a setup message.
 
 ## Development Workflow
 
@@ -92,12 +98,12 @@ Use `npm run android`, `npm run ios`, or `npm run web` for a platform-specific s
 
 ## Project Status
 
-Grocefy is under active development. This repository currently provides the mobile MVP foundation and local data flow; backend authentication and collaboration will be added incrementally.
+Grocefy is under active development. Accounts, shared lists and groups, purchasing, price memory, purchased history, and monthly finance reports run end to end on Supabase. Features are delivered incrementally through feature branches and pull requests targeting `Development`.
 
 ## Roadmap
 
-- Authentication, shared lists, and Viewer/Editor/Partner/Owner permissions
-- Server-backed groups, purchases, and monthly reports
+- Invitation and monthly report emails (Edge Functions with a transactional email provider)
+- Realtime list updates while shopping together
 - Offline shopping and push notifications
 - Recurring lists, receipt scanning, AI suggestions, price trends, and store comparison
 - Inventory management, multiple workspaces, advanced analytics, currency conversion, and PDF/CSV/Excel exports
