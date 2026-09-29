@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, Switch, Text, View } from 'react-native';
 import { currencyLabel } from '@/src/currency';
 import { signOut } from '@/src/services/auth';
 import { friendlyError } from '@/src/services/errors';
-import { setTimezone } from '@/src/services/settings';
+import { setEmailNotifications, setTimezone } from '@/src/services/settings';
 import { useSession, useUserId } from '@/src/session';
 import { Button, Card, CurrencyPicker, Heading, palette, Screen, styles } from '@/src/ui';
 
@@ -23,6 +23,11 @@ export default function Settings() {
     <Card><Text style={styles.label}>Report timezone</Text>
       <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, lineHeight: 19 }}>Monthly reports start and end at midnight in this timezone. Current: {settings?.timezone ?? 'UTC (not set)'}</Text>
       {deviceZone && settings?.timezone !== deviceZone && <View style={{ marginTop: 12 }}><Button label={`Use ${deviceZone}`} variant="soft" loading={busy} onPress={() => run(async () => { await setTimezone(userId, deviceZone); await refreshAccount(); })}/></View>}
+    </Card>
+    <Card><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><View style={{ flex: 1 }}><Text style={styles.label}>Email notifications</Text>
+      <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, lineHeight: 19 }}>Invitations and monthly finance reports sent to {session?.user.email ?? 'your email'}. In-app notifications are always on.</Text></View>
+      <Switch accessibilityLabel="Email notifications" value={settings?.email_notifications ?? true} disabled={busy || !settings} trackColor={{ true: palette.green }}
+        onValueChange={(enabled) => run(async () => { await setEmailNotifications(userId, enabled); await refreshAccount(); })}/></View>
     </Card>
     <Button label="Sign out" variant="danger" icon="log-out-outline" onPress={() => signOut().catch((caught) => Alert.alert('Could not sign out', friendlyError(caught)))}/>
   </Screen>;

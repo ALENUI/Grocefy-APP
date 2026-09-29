@@ -65,6 +65,59 @@ export type Database = {
         };
         Relationships: [];
       };
+      email_outbox: {
+        Row: {
+          attempts: number;
+          created_at: string;
+          id: string;
+          kind: Database['public']['Enums']['email_kind'];
+          last_error: string | null;
+          locked_at: string | null;
+          next_attempt_at: string;
+          recipient_id: string | null;
+          reference_id: string;
+          sent_at: string | null;
+          status: Database['public']['Enums']['email_status'];
+          to_email: string;
+        };
+        Insert: {
+          attempts?: number;
+          created_at?: string;
+          id?: string;
+          kind: Database['public']['Enums']['email_kind'];
+          last_error?: string | null;
+          locked_at?: string | null;
+          next_attempt_at?: string;
+          recipient_id?: string | null;
+          reference_id: string;
+          sent_at?: string | null;
+          status?: Database['public']['Enums']['email_status'];
+          to_email: string;
+        };
+        Update: {
+          attempts?: number;
+          created_at?: string;
+          id?: string;
+          kind?: Database['public']['Enums']['email_kind'];
+          last_error?: string | null;
+          locked_at?: string | null;
+          next_attempt_at?: string;
+          recipient_id?: string | null;
+          reference_id?: string;
+          sent_at?: string | null;
+          status?: Database['public']['Enums']['email_status'];
+          to_email?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'email_outbox_recipient_id_fkey';
+            columns: ['recipient_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       group_members: {
         Row: {
           created_at: string;
@@ -874,6 +927,7 @@ export type Database = {
         Row: {
           created_at: string;
           default_currency: string;
+          email_notifications: boolean;
           language: string | null;
           timezone: string | null;
           updated_at: string;
@@ -882,6 +936,7 @@ export type Database = {
         Insert: {
           created_at?: string;
           default_currency?: string;
+          email_notifications?: boolean;
           language?: string | null;
           timezone?: string | null;
           updated_at?: string;
@@ -890,6 +945,7 @@ export type Database = {
         Update: {
           created_at?: string;
           default_currency?: string;
+          email_notifications?: boolean;
           language?: string | null;
           timezone?: string | null;
           updated_at?: string;
@@ -997,6 +1053,33 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      claim_email_batch: {
+        Args: { batch_size?: number };
+        Returns: {
+          attempts: number;
+          created_at: string;
+          id: string;
+          kind: Database['public']['Enums']['email_kind'];
+          last_error: string | null;
+          locked_at: string | null;
+          next_attempt_at: string;
+          recipient_id: string | null;
+          reference_id: string;
+          sent_at: string | null;
+          status: Database['public']['Enums']['email_status'];
+          to_email: string;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'email_outbox';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      complete_email: {
+        Args: { email_id: string; error_message?: string; outcome: Database['public']['Enums']['email_status'] };
+        Returns: undefined;
       };
       create_invitation: {
         Args: {
@@ -1129,8 +1212,11 @@ export type Database = {
         };
       };
       shares_resource_with: { Args: { other_user: string }; Returns: boolean };
+      wants_email: { Args: { user_id: string }; Returns: boolean };
     };
     Enums: {
+      email_kind: 'invitation' | 'monthly_report';
+      email_status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped';
       invitation_resource: 'group' | 'list';
       list_item_status: 'pending' | 'purchased' | 'archived';
       member_role: 'owner' | 'viewer' | 'editor' | 'partner';
@@ -1241,6 +1327,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      email_kind: ['invitation', 'monthly_report'],
+      email_status: ['pending', 'sending', 'sent', 'failed', 'skipped'],
       invitation_resource: ['group', 'list'],
       list_item_status: ['pending', 'purchased', 'archived'],
       member_role: ['owner', 'viewer', 'editor', 'partner'],

@@ -31,3 +31,8 @@ export async function setDefaultCurrency(userId: string, currencyCode: string): 
 export async function setTimezone(userId: string, timezone: string): Promise<UserSettings> {
   return unwrap(await getSupabaseClient().from('user_settings').update({ timezone }).eq('user_id', userId).select('*').single());
 }
+
+/** Invitation and monthly report emails. In-app notifications are unaffected. */
+export async function setEmailNotifications(userId: string, enabled: boolean): Promise<UserSettings> {
+  return unwrap(await getSupabaseClient().from('user_settings').update({ email_notifications: enabled }).eq('user_id', userId).select('*').single());
+}

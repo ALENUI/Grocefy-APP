@@ -181,6 +181,30 @@ const as = async (name) => { await auth.signOut().catch(() => undefined); await 
     assert.ok((await purchases.fetchPurchases()).every((purchase) => purchase.currency_code === 'XAF'));
   });
 
+  // Email delivery through the send-emails Edge Function (requires supabase/functions/.env; see .env.example).
+  const functionEnv = (() => { try { return Object.fromEntries(require('node:fs').readFileSync('supabase/functions/.env', 'utf8').split(/\r?\n/).map((line) => line.match(/^([A-Z_]+)=(.*)$/)).filter(Boolean).map((match) => [match[1], match[2]])); } catch { return null; } })();
+  if (!functionEnv?.EMAIL_WORKER_SECRET) {
+    console.log('  skip - send-emails checks (create supabase/functions/.env from .env.example)');
+  } else {
+    const worker = (headers) => fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/send-emails`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: '{}' });
+    await check('the email worker rejects requests without the worker secret', async () => {
+      assert.equal((await worker({})).status, 401);
+      assert.equal((await worker({ 'x-worker-secret': 'wrong' })).status, 401);
+    });
+    await check('the email worker sends pending invitations and skips answered ones', async () => {
+      await auth.signUp({ email: email('late'), password, username: username('late'), defaultCurrency: 'XAF' });
+      await as('owner');
+      await sharing.inviteMember('group', group.id, 'viewer', username('late'));
+      const response = await worker({ 'x-worker-secret': functionEnv.EMAIL_WORKER_SECRET });
+      const result = await response.json();
+      assert.equal(response.status, 200, JSON.stringify(result));
+      assert.equal(result.failed, 0, JSON.stringify(result));
+      assert.ok(result.sent >= 1, `expected the pending invitation to be sent: ${JSON.stringify(result)}`);
+      assert.ok(result.skipped >= 2, `expected the two accepted invitations to be skipped: ${JSON.stringify(result)}`);
+      assert.deepEqual(await (await worker({ 'x-worker-secret': functionEnv.EMAIL_WORKER_SECRET })).json(), { provider: functionEnv.EMAIL_PROVIDER ?? 'log', sent: 0, failed: 0, skipped: 0 });
+    });
+  }
+
   await auth.signOut();
   console.log(`\nAll ${step} service checks passed.`);
 })().catch((error) => { console.error(`\nnot ok ${step + 1}:`, error); process.exit(1); });
