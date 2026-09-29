@@ -8,7 +8,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:db": "node scripts/test-db.mjs",
+    "db:types": "supabase gen types typescript --linked --schema public > src/services/database.types.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.4",
