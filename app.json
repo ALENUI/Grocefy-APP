@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "grocefy",
-    "plugins": ["expo-router"],
+    "plugins": ["expo-router", "expo-asset", "expo-font"],
     "experiments": { "typedRoutes": true },
     "android": { "package": "com.grocefy.app" },
     "ios": { "bundleIdentifier": "com.grocefy.app" }
