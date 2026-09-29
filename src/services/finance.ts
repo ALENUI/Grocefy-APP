@@ -20,12 +20,14 @@ export async function generateMonthlyReport(year: number, month: number, scope: 
 }
 
 /** Reports visible to the caller, newest month first. Totals are per currency and must never be summed across reports. */
-export async function fetchMonthlyReports({ scope, pageSize = 24, page = 0 }: { scope?: ReportScope; pageSize?: number; page?: number } = {}): Promise<MonthlyReportWithItems[]> {
+export async function fetchMonthlyReports({ scope, year, month, pageSize = 24, page = 0 }: { scope?: ReportScope; year?: number; month?: number; pageSize?: number; page?: number } = {}): Promise<MonthlyReportWithItems[]> {
   let query = getSupabaseClient().from('monthly_reports').select('*, items:monthly_report_items(*)')
     .order('year', { ascending: false }).order('month', { ascending: false }).order('currency_code')
     .range(page * pageSize, page * pageSize + pageSize - 1);
   if (scope?.kind === 'group') query = query.eq('group_id', scope.groupId);
   if (scope?.kind === 'list') query = query.eq('list_id', scope.listId);
   if (scope?.kind === 'personal') query = query.is('group_id', null).is('list_id', null);
+  if (year !== undefined) query = query.eq('year', year);
+  if (month !== undefined) query = query.eq('month', month);
   return unwrap(await query);
 }

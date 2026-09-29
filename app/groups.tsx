@@ -1,18 +1,61 @@
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Modal, Pressable, Text, View } from 'react-native';
-import { CollaborationRole } from '@/src/models';
-import { useGrocefy } from '@/src/store';
-import { Button, Card, Field, palette, Screen, styles } from '@/src/ui';
+import { Alert, Text, View } from 'react-native';
+import { formatCurrency } from '@/src/currency';
+import { friendlyError } from '@/src/services/errors';
+import { archiveGroup, createGroup, fetchGroups, GroupSummary } from '@/src/services/groups';
+import { useSession, useUserId } from '@/src/session';
+import { useAsync } from '@/src/useAsync';
+import { BackHeader, Button, Card, CurrencyPicker, EmptyState, ErrorNotice, Field, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
 
-const roles: CollaborationRole[] = ['Viewer', 'Editor', 'Partner'];
 export default function Groups() {
-  const { groups, lists, addGroup, addGroupMember } = useGrocefy(); const [createOpen, setCreateOpen] = useState(false); const [inviteTo, setInviteTo] = useState<string | null>(null); const [name, setName] = useState(''); const [member, setMember] = useState(''); const [role, setRole] = useState<CollaborationRole>('Editor');
-  const create = () => { if (!name.trim()) return Alert.alert('Group name required', 'Name your group before creating it.'); addGroup(name.trim()); setName(''); setCreateOpen(false); };
-  const invite = () => { if (!inviteTo || !member.trim()) return Alert.alert('Member name required', 'Enter the person you want to add.'); addGroupMember(inviteTo, member.trim(), role); setMember(''); setInviteTo(null); };
-  return <Screen><View style={{ flexDirection: 'row', gap: 14, alignItems: 'center' }}><Pressable onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color={palette.ink}/></Pressable><View><Text style={styles.title}>Shopping groups</Text><Text style={styles.subtitle}>Organize lists and collaborators by purpose</Text></View></View>{groups.map((group) => { const groupLists = lists.filter((list) => list.group === group.name); return <Card key={group.id}><View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><View><Text style={{ color: palette.ink, fontSize: 18, fontWeight: '800' }}>{group.name}</Text><Text style={{ color: palette.muted, marginTop: 5 }}>{groupLists.length} lists · {group.members.length} members</Text></View><Pressable onPress={() => setInviteTo(group.id)} style={{ backgroundColor: palette.pale, padding: 10, borderRadius: 10 }}><Ionicons name="person-add-outline" size={19} color={palette.green}/></Pressable></View><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 14 }}>{group.members.map((entry) => <Text key={entry.id} style={{ color: palette.green, backgroundColor: palette.pale, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, fontWeight: '700', fontSize: 12 }}>{entry.name} · {entry.role}</Text>)}</View>{groupLists.length > 0 && <Text style={{ color: palette.muted, marginTop: 14 }}>Lists: {groupLists.map((entry) => entry.name).join(', ')}</Text>}</Card>; })}<Button label="Create shopping group" icon="add-circle-outline" onPress={() => setCreateOpen(true)}/>
-    <Modal visible={createOpen} transparent animationType="fade"><View style={{ flex: 1, padding: 20, justifyContent: 'center', backgroundColor: '#00000055' }}><Card><Text style={styles.title}>Create group</Text><View style={{ gap: 14, marginTop: 18 }}><Field label="Group name" value={name} onChangeText={setName} hint="e.g. Office Shopping"/><Button label="Create group" onPress={create}/><Button label="Cancel" variant="soft" onPress={() => setCreateOpen(false)}/></View></Card></View></Modal>
-    <Modal visible={!!inviteTo} transparent animationType="fade"><View style={{ flex: 1, padding: 20, justifyContent: 'center', backgroundColor: '#00000055' }}><Card><Text style={styles.title}>Add collaborator</Text><Text style={[styles.subtitle, { marginTop: 5 }]}>Roles are stored locally until secure account sharing is connected.</Text><View style={{ gap: 14, marginTop: 18 }}><Field label="Name" value={member} onChangeText={setMember} hint="e.g. Jamie"/><View style={styles.field}><Text style={styles.label}>Role</Text><View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{roles.map((entry) => <Text key={entry} onPress={() => setRole(entry)} style={{ paddingHorizontal: 12, paddingVertical: 9, borderRadius: 18, overflow: 'hidden', color: role === entry ? 'white' : palette.green, backgroundColor: role === entry ? palette.green : palette.pale, fontWeight: '700' }}>{entry}</Text>)}</View></View><Button label="Add collaborator" onPress={invite}/><Button label="Cancel" variant="soft" onPress={() => setInviteTo(null)}/></View></Card></View></Modal>
+  const userId = useUserId();
+  const groups = useAsync(() => fetchGroups(userId), [userId]);
+  const [creating, setCreating] = useState(false);
+  return <Screen refreshing={groups.loading && !!groups.data} onRefresh={groups.reload}>
+    <BackHeader title="Shopping groups" subtitle="Organize lists and collaborators by purpose"/>
+    {groups.error ? <ErrorNotice error={groups.error} onRetry={groups.reload}/> : !groups.data ? <Loading/> : groups.data.length === 0
+      ? <EmptyState title="No groups yet" message="Group related lists, like House Shopping or Office Shopping, and share them with the people who shop with you."/>
+      : groups.data.map((group) => <GroupCard key={group.id} group={group} onChanged={groups.reload}/>)}
+    <Button label="Create shopping group" icon="add-circle-outline" onPress={() => setCreating(true)}/>
+    <CreateGroupSheet visible={creating} onClose={() => setCreating(false)} onCreated={groups.reload}/>
   </Screen>;
+}
+
+function GroupCard({ group, onChanged }: { group: GroupSummary; onChanged: () => void }) {
+  const canAddLists = group.role === 'owner' || group.role === 'partner';
+  const archive = () => Alert.alert('Archive group?', 'Its lists stay available and purchase history is kept.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Archive', style: 'destructive', onPress: () => archiveGroup(group.id).then(onChanged).catch((caught) => Alert.alert('Could not archive', friendlyError(caught))) }
+  ]);
+  return <Card><View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}><View style={{ flex: 1 }}>
+      <Text style={{ color: palette.ink, fontSize: 18, fontWeight: '800' }}>{group.name}</Text>
+      <Text style={{ color: palette.muted, marginTop: 5 }}>{group.listCount} lists · {group.memberCount} members · You: {group.role}</Text></View>
+    <IconButton icon="people-outline" label="Members" onPress={() => router.push({ pathname: '/members', params: { type: 'group', id: group.id, name: group.name } })}/></View>
+    {group.totals.length > 0 && <View style={{ marginTop: 12, gap: 4 }}>{group.totals.map((total) => <Text key={total.currency_code} style={{ color: palette.ink }}>
+      Budget <Text style={{ fontWeight: '800' }}>{formatCurrency(total.budgeted_total ?? 0, total.currency_code ?? '')}</Text> · Paid <Text style={{ fontWeight: '800' }}>{formatCurrency(total.purchased_total ?? 0, total.currency_code ?? '')}</Text></Text>)}</View>}
+    <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+      {canAddLists && <View style={{ flex: 1 }}><Button label="New list" variant="soft" icon="add" onPress={() => router.push({ pathname: '/create-list', params: { groupId: group.id } })}/></View>}
+      {group.role === 'owner' && <View style={{ flex: 1 }}><Button label="Archive" variant="danger" icon="archive-outline" onPress={archive}/></View>}
+    </View>
+  </Card>;
+}
+
+function CreateGroupSheet({ visible, onClose, onCreated }: { visible: boolean; onClose: () => void; onCreated: () => void }) {
+  const userId = useUserId();
+  const { defaultCurrency } = useSession();
+  const [name, setName] = useState(''); const [currency, setCurrency] = useState(defaultCurrency);
+  const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
+  const create = async () => {
+    if (!name.trim()) return setError('Name your group before creating it.');
+    setBusy(true); setError(undefined);
+    try { await createGroup(userId, name.trim(), currency); setName(''); onCreated(); onClose(); }
+    catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
+  };
+  return <Sheet visible={visible} title="Create group" onClose={onClose}>
+    <Field label="Group name" value={name} onChangeText={setName} hint="e.g. House Shopping"/>
+    <View style={styles.field}><Text style={styles.label}>Group currency</Text><CurrencyPicker value={currency} onChange={setCurrency}/><Text style={{ color: palette.muted, fontSize: 12 }}>Lists in the group can still use their own currency; totals are shown per currency.</Text></View>
+    {error && <Text style={{ color: palette.red }}>{error}</Text>}
+    <Button label="Create group" onPress={create} loading={busy}/>
+  </Sheet>;
 }

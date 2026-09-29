@@ -5,3 +5,8 @@ enabled = true
 
 [db]
 major_version = 15
+
+[auth]
+# Email links (confirmation, password reset) return to the app through its deep-link scheme.
+site_url = "grocefy://"
+additional_redirect_urls = ["grocefy://**", "exp://**"]
