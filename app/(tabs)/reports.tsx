@@ -1,12 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import { formatCurrency } from '@/src/currency';
 import { generateMonthlyReport, fetchMonthlyReports, MonthlyReportWithItems, ReportScope } from '@/src/services/finance';
+import { friendlyError } from '@/src/services/errors';
+import { fetchPurchasesInPeriod, periodLabel, purchasesCsv, reportCsv, shareCsv } from '@/src/services/exports';
 import { fetchGroups } from '@/src/services/groups';
 import { useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
-import { Card, Chip, EmptyState, ErrorNotice, Heading, Loading, palette, Screen } from '@/src/ui';
+import { Button, Card, Chip, EmptyState, ErrorNotice, Heading, Loading, palette, Screen } from '@/src/ui';
 
 const monthLabel = (year: number, month: number) => new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
@@ -40,14 +42,28 @@ export default function Reports() {
     </View></Card>
     {reports.error ? <ErrorNotice error={reports.error} onRetry={reports.reload}/> : !reports.data ? <Loading/> : reports.data.length === 0
       ? <EmptyState title="No purchases this month" message="Reports are built from confirmed purchases. Each currency gets its own statement."/>
-      : reports.data.map((report) => <ReportCard key={report.id} report={report}/>)}
+      : reports.data.map((report) => <ReportCard key={report.id} report={report} userId={userId}
+          scopeName={scope.kind === 'group' ? groups.data?.find((group) => group.id === scope.groupId)?.name ?? 'Group' : 'My purchases'}/>)}
     {reports.data && reports.data.length > 1 && <Text style={{ color: palette.muted, lineHeight: 20 }}>Purchases in different currencies are reported separately. Grocefy never adds different currencies together.</Text>}
   </Screen>;
 }
 
-function ReportCard({ report }: { report: MonthlyReportWithItems }) {
+function ReportCard({ report, scopeName, userId }: { report: MonthlyReportWithItems; scopeName: string; userId: string }) {
   const code = report.currency_code;
   const under = report.total_variance <= 0;
+  const [exporting, setExporting] = useState<'statement' | 'purchases'>();
+  const fileName = `grocefy-${scopeName}-${periodLabel(report)}-${code}`;
+  const run = async (kind: 'statement' | 'purchases', build: () => Promise<string>) => {
+    setExporting(kind);
+    try { await shareCsv(`${fileName}-${kind}`, await build(), `Export ${scopeName} ${periodLabel(report)}`); }
+    catch (caught) { Alert.alert('Could not export', caught instanceof Error && !('code' in caught) ? caught.message : friendlyError(caught)); }
+    finally { setExporting(undefined); }
+  };
+  const exportPurchases = () => run('purchases', async () => {
+    if (!report.period_start || !report.period_end) throw new Error('This report has no period boundaries; regenerate it first.');
+    const scope = report.group_id ? { groupId: report.group_id } : { userId };
+    return purchasesCsv(await fetchPurchasesInPeriod(scope, report.period_start, report.period_end, code));
+  });
   return <Card>
     <Text style={{ color: palette.green, fontWeight: '800', fontSize: 13 }}>CURRENCY: {code}</Text>
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
@@ -61,6 +77,11 @@ function ReportCard({ report }: { report: MonthlyReportWithItems }) {
         <View style={{ alignItems: 'flex-end' }}><Text style={{ color: palette.ink, fontWeight: '700' }}>{formatCurrency(item.purchased_amount, code)} / {formatCurrency(item.budgeted_amount, code)}</Text>
           {item.variance !== 0 && <Text style={{ color: item.variance < 0 ? palette.green : palette.red, fontSize: 12 }}>{item.variance < 0 ? '−' : '+'}{formatCurrency(Math.abs(item.variance), code)}</Text>}</View>
       </View>)}
+    </View>
+    <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+      <View style={{ flex: 1 }}><Button label="Statement CSV" variant="soft" icon="download-outline" loading={exporting === 'statement'} disabled={!!exporting}
+        onPress={() => run('statement', async () => reportCsv(report, scopeName))}/></View>
+      <View style={{ flex: 1 }}><Button label="Purchases CSV" variant="soft" icon="receipt-outline" loading={exporting === 'purchases'} disabled={!!exporting} onPress={exportPurchases}/></View>
     </View>
   </Card>;
 }

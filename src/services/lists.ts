@@ -59,6 +59,14 @@ export async function updateList(listId: string, { name, categoryId, currencyCod
   }).eq('id', listId).select('id').single());
 }
 
+/**
+ * Copies a list into a new list owned by the caller with every item pending again. Budgets refresh to the latest
+ * price paid in the list's currency (never another currency). Stays in the group only if the caller may add lists there.
+ */
+export async function duplicateList(listId: string, name?: string): Promise<ShoppingList> {
+  return unwrap(await getSupabaseClient().rpc('duplicate_list', { source_list_id: listId, ...(name ? { new_name: name } : {}) }));
+}
+
 /** Archiving is the only way to remove a list; its purchase history is preserved. */
 export async function archiveList(listId: string): Promise<void> {
   unwrap(await getSupabaseClient().from('shopping_lists').update({ archived_at: new Date().toISOString() }).eq('id', listId).select('id').single());

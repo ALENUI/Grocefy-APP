@@ -1,7 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { Text, View } from 'react-native';
+import { ActivityFeed } from '@/src/ActivityFeed';
 import { formatCurrency } from '@/src/currency';
+import { fetchActivity } from '@/src/services/activity';
 import { ListCard } from '@/src/ListCard';
 import { fetchGroup } from '@/src/services/groups';
 import { fetchLists } from '@/src/services/lists';
@@ -16,13 +18,13 @@ export default function GroupDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useUserId();
   const state = useAsync(async () => {
-    const [group, lists] = await Promise.all([fetchGroup(userId, id), fetchLists({ groupId: id })]);
-    return { group, lists };
+    const [group, lists, activity] = await Promise.all([fetchGroup(userId, id), fetchLists({ groupId: id }), fetchActivity({ groupId: id })]);
+    return { group, lists, activity };
   }, [userId, id]);
   useLive((onChange) => watchGroup(id, onChange), state.reload, [id]);
 
   if (!state.data) return <Screen><BackHeader title="Group"/>{state.error ? <ErrorNotice error={state.error} onRetry={state.reload}/> : <Loading/>}</Screen>;
-  const { group, lists } = state.data;
+  const { group, lists, activity } = state.data;
   const canAddLists = group.role === 'owner' || group.role === 'partner';
 
   return <Screen refreshing={state.loading} onRefresh={state.reload}>
@@ -39,5 +41,6 @@ export default function GroupDetail() {
     {lists.length === 0 ? <EmptyState title="No lists in this group" message={canAddLists ? 'Create a list here, for example Food or Cleaning.' : 'Lists added to this group will appear here.'}/>
       : <View style={{ gap: 11 }}>{lists.map((list) => <ListCard key={list.id} list={list} showGroup={false}/>)}</View>}
     {canAddLists && <Button label="New list in this group" icon="add-circle-outline" onPress={() => router.push({ pathname: '/create-list', params: { groupId: group.id } })}/>}
+    <ActivityFeed entries={activity}/>
   </Screen>;
 }
