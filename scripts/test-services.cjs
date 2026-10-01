@@ -122,7 +122,7 @@ const as = async (name) => { await auth.signOut().catch(() => undefined); await 
     const [invitation] = await sharing.fetchPendingInvitations();
     await sharing.respondToInvitation(invitation.id, true);
     const bread = (await lists.fetchListItems(food.id)).find((item) => item.product.name === 'Bread');
-    await lists.updateItemBudget(bread.id, 1200);
+    await lists.updateItem(bread.id, { budgetedUnitPrice: 1200 });
     await rejectsWith(purchases.purchaseListItem(bread.id, { actualAmount: 1000 }), 'FORBIDDEN');
   });
   await check('editor cannot change member roles', async () => {
@@ -144,6 +144,38 @@ const as = async (name) => { await auth.signOut().catch(() => undefined); await 
     const cross = await lists.getPriceSuggestion(product.id, usd.currency_code);
     assert.equal(cross.suggestedUnitPrice, null);
     assert.equal(cross.latestCurrencyCode, 'XAF');
+  });
+  await check('product search ranks exact and prefix matches first', async () => {
+    const results = await lists.searchProducts('ric');
+    assert.equal(results[0].name, 'Rice');
+    assert.ok((await lists.searchProducts('bre')).some((product) => product.name === 'Bread'), 'products added by collaborators are suggested');
+    assert.deepEqual(await lists.searchProducts('  '), []);
+  });
+  await check('custom categories can be created, archived, and restored by name', async () => {
+    const created = await categories.createCategory(ids.owner, 'Baby Care');
+    await rejectsWith(categories.createCategory(ids.owner, 'Baby Care'), 'ALREADY_EXISTS');
+    await categories.archiveCategory(created.id);
+    assert.ok(!(await categories.fetchCategories(ids.owner)).some((category) => category.id === created.id));
+    assert.equal((await categories.createCategory(ids.owner, 'Baby Care')).id, created.id);
+    await rejectsWith(categories.renameCategory((await categories.fetchCategories(ids.owner)).find((category) => category.is_default).id, 'Mine'), 'NOT_FOUND');
+  });
+  await check('items take a chosen product and category; lists can be renamed and re-currencied while empty', async () => {
+    const list = await lists.createList({ ownerId: ids.owner, name: 'Baby', currencyCode: 'USD' });
+    await lists.updateList(list.id, { name: 'Baby things', currencyCode: 'EUR' });
+    const babyCare = (await categories.fetchCategories(ids.owner)).find((category) => category.name === 'Baby Care');
+    const product = (await lists.searchProducts('Rice'))[0];
+    const item = await lists.addItem(ids.owner, { listId: list.id, productName: product.name, productId: product.id, budgetedUnitPrice: 12.5, categoryId: babyCare.id });
+    assert.equal(item.product.id, product.id);
+    assert.equal(item.category.name, 'Baby Care');
+    await lists.updateItem(item.id, { categoryId: null, quantity: 2 });
+    const [reloaded] = await lists.fetchListItems(list.id);
+    assert.equal(reloaded.category, null);
+    assert.equal(reloaded.budgeted_total, 25);
+    const renamed = await lists.fetchList(list.id);
+    assert.equal(renamed.name, 'Baby things');
+    assert.equal(renamed.currency_code, 'EUR');
+    await rejectsWith(lists.updateList(list.id, { currencyCode: 'USD' }), 'CURRENCY_LOCKED');
+    await lists.archiveList(list.id);
   });
   await check('group summary reports role, totals per currency, and counts', async () => {
     const [summary] = await groups.fetchGroups(ids.owner);

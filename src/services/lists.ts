@@ -7,7 +7,7 @@ export type ListWithContext = ShoppingList & {
   category: Pick<Tables<'categories'>, 'id' | 'name'> | null;
   totals: ListTotals | null;
 };
-export type ListItem = Tables<'list_items'> & { product: Pick<Tables<'products'>, 'id' | 'name'> | null };
+export type ListItem = Tables<'list_items'> & { product: Pick<Tables<'products'>, 'id' | 'name'> | null; category: Pick<Tables<'categories'>, 'id' | 'name'> | null };
 export type ListTotals = Views<'list_totals'>;
 export type PriceSuggestion = {
   latestUnitPrice: number; latestCurrencyCode: string; latestPurchasedAt: string;
@@ -16,7 +16,10 @@ export type PriceSuggestion = {
 };
 
 export type CreateListInput = { ownerId: string; name: string; currencyCode: string; groupId?: string | null; categoryId?: string | null; description?: string };
-export type AddItemInput = { listId: string; productName: string; quantity?: number; unit?: string; budgetedUnitPrice: number; categoryId?: string | null; notes?: string };
+/** productId: a product chosen from search suggestions; otherwise the product is found or created by name. */
+export type AddItemInput = { listId: string; productName: string; productId?: string; quantity?: number; unit?: string; budgetedUnitPrice: number; categoryId?: string | null; notes?: string };
+export type ItemChanges = { quantity?: number; budgetedUnitPrice?: number; categoryId?: string | null };
+export type ListChanges = { name?: string; categoryId?: string | null; currencyCode?: string };
 
 const listSelect = '*, group:shopping_groups(id, name), category:categories(id, name)';
 
@@ -46,14 +49,23 @@ export async function createList({ ownerId, name, currencyCode, groupId, categor
     .select('*').single());
 }
 
+/** Renaming and recategorizing need Editor access; changing the currency needs the owner and an empty list. */
+export async function updateList(listId: string, { name, categoryId, currencyCode }: ListChanges): Promise<void> {
+  unwrap(await getSupabaseClient().from('shopping_lists').update({
+    ...(name === undefined ? {} : { name }), ...(categoryId === undefined ? {} : { category_id: categoryId }), ...(currencyCode === undefined ? {} : { currency_code: currencyCode })
+  }).eq('id', listId).select('id').single());
+}
+
 /** Archiving is the only way to remove a list; its purchase history is preserved. */
 export async function archiveList(listId: string): Promise<void> {
   unwrap(await getSupabaseClient().from('shopping_lists').update({ archived_at: new Date().toISOString() }).eq('id', listId).select('id').single());
 }
 
 export async function fetchListItems(listId: string): Promise<ListItem[]> {
-  return unwrap(await getSupabaseClient().from('list_items').select('*, product:products(id, name)').eq('list_id', listId).neq('status', 'archived').order('created_at'));
+  return unwrap(await getSupabaseClient().from('list_items').select(itemSelect).eq('list_id', listId).neq('status', 'archived').order('created_at'));
 }
+
+const itemSelect = '*, product:products(id, name), category:categories(id, name)';
 
 const escapeLike = (value: string) => value.trim().replace(/[\\%_]/g, (character) => `\\${character}`);
 
@@ -70,20 +82,24 @@ export async function findOrCreateProduct(name: string, userId: string): Promise
     ?? unwrap(await getSupabaseClient().from('products').insert({ owner_id: userId, name: name.trim() }).select('*').single());
 }
 
-export async function searchProducts(query: string, limit = 20): Promise<Tables<'products'>[]> {
-  return unwrap(await getSupabaseClient().from('products').select('*').ilike('name', `%${escapeLike(query)}%`).is('archived_at', null).order('name').limit(limit));
+/** Ranked suggestions (exact, prefix, then similar names) among products the caller can see; one result per name. */
+export async function searchProducts(query: string, limit = 8): Promise<Tables<'products'>[]> {
+  if (!query.trim()) return [];
+  return unwrap(await getSupabaseClient().rpc('search_products', { query, result_limit: limit }));
 }
 
 /** `userId` is the signed-in user; the database overrides created_by with the authenticated user regardless. */
-export async function addItem(userId: string, { listId, productName, quantity = 1, unit, budgetedUnitPrice, categoryId, notes }: AddItemInput): Promise<ListItem> {
-  const product = await findOrCreateProduct(productName, userId);
+export async function addItem(userId: string, { listId, productName, productId, quantity = 1, unit, budgetedUnitPrice, categoryId, notes }: AddItemInput): Promise<ListItem> {
+  const product = productId ? { id: productId } : await findOrCreateProduct(productName, userId);
   return unwrap(await getSupabaseClient().from('list_items')
     .insert({ list_id: listId, product_id: product.id, quantity, unit, budgeted_unit_price: budgetedUnitPrice, category_id: categoryId ?? null, notes, created_by: userId })
-    .select('*, product:products(id, name)').single());
+    .select(itemSelect).single());
 }
 
-export async function updateItemBudget(itemId: string, budgetedUnitPrice: number, quantity?: number): Promise<void> {
-  unwrap(await getSupabaseClient().from('list_items').update({ budgeted_unit_price: budgetedUnitPrice, ...(quantity === undefined ? {} : { quantity }) }).eq('id', itemId).select('id').single());
+export async function updateItem(itemId: string, { quantity, budgetedUnitPrice, categoryId }: ItemChanges): Promise<void> {
+  unwrap(await getSupabaseClient().from('list_items').update({
+    ...(quantity === undefined ? {} : { quantity }), ...(budgetedUnitPrice === undefined ? {} : { budgeted_unit_price: budgetedUnitPrice }), ...(categoryId === undefined ? {} : { category_id: categoryId })
+  }).eq('id', itemId).select('id').single());
 }
 
 export async function removeItem(itemId: string): Promise<void> {

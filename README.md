@@ -4,7 +4,9 @@ Grocefy is a collaborative grocery and shopping management app for individuals, 
 
 ## Features
 
-- **Shopping lists:** create lists and categorize them as Food, Kitchen, Bathroom, Cleaning, Household, Personal Care, Office Supplies, or custom.
+- **Shopping lists:** create lists with a purpose category (Food Stuffs, Kitchen, Bathroom, Cleaning, Home Appliances, Electronics, Office Supplies, Clothing, Personal Care, Household, Other, or your own). Items can have their own category and are grouped by it while shopping. Lists can be renamed and recategorized, and their currency can change until the first item is added.
+- **Custom categories:** create, rename, and archive your own categories. Archived categories disappear from pickers but stay on history and reports.
+- **Product search:** as you type an item, Grocefy suggests products you already know, from your lists and those shared with you. Exact and prefix matches come first, then similar names. Choosing a suggestion reuses the product and its price memory.
 - **Shopping groups:** organize lists by a shared purpose, such as House Shopping or Office Shopping.
 - **Accounts:** sign up with a username and default currency, sign in, and reset a forgotten password by email.
 - **Collaboration:** invite people to a list or group by username or email as Viewer, Editor, or Partner; they accept or decline from their inbox.
@@ -78,7 +80,7 @@ The migrations also create the reference data (currency registry and default cat
 
 ### Database tests
 
-`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, and the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery).
+`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery), product search ranking and visibility, and custom categories on shared lists.
 
 ### Email tests
 
@@ -86,7 +88,7 @@ The migrations also create the reference data (currency registry and default cat
 
 ### Service end-to-end tests
 
-`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
+`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, product search, custom categories, list editing, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
 
 ## Getting Started
 
