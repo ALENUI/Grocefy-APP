@@ -3,7 +3,9 @@ import { Text, View } from 'react-native';
 import { formatCurrency } from '@/src/currency';
 import { friendlyError } from '@/src/services/errors';
 import { fetchPurchases, PurchaseWithProduct } from '@/src/services/purchases';
+import { watchTables } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
+import { useLive } from '@/src/useLive';
 import { Button, Card, EmptyState, ErrorNotice, Heading, Loading, palette, Screen } from '@/src/ui';
 
 const pageSize = 50;
@@ -13,6 +15,7 @@ export default function PurchaseHistory() {
   const [older, setOlder] = useState<PurchaseWithProduct[]>([]);
   const [hasMore, setHasMore] = useState(true); const [loadingMore, setLoadingMore] = useState(false); const [moreError, setMoreError] = useState<string>();
   const first = useAsync(async () => { const page = await fetchPurchases({ pageSize }); setOlder([]); setHasMore(page.length === pageSize); return page; }, []);
+  useLive((onChange) => watchTables([{ table: 'purchases' }], onChange), first.reload, []);
   const purchases = [...(first.data ?? []), ...older];
 
   const loadMore = async () => {

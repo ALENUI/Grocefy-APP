@@ -1,16 +1,19 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import { formatCurrency } from '@/src/currency';
 import { friendlyError } from '@/src/services/errors';
 import { archiveGroup, createGroup, fetchGroups, GroupSummary } from '@/src/services/groups';
 import { useSession, useUserId } from '@/src/session';
+import { watchLists } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
+import { useLive } from '@/src/useLive';
 import { BackHeader, Button, Card, CurrencyPicker, EmptyState, ErrorNotice, Field, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
 
 export default function Groups() {
   const userId = useUserId();
   const groups = useAsync(() => fetchGroups(userId), [userId]);
+  useLive(watchLists, groups.reload, []);
   const [creating, setCreating] = useState(false);
   return <Screen refreshing={groups.loading && !!groups.data} onRefresh={groups.reload}>
     <BackHeader title="Shopping groups" subtitle="Organize lists and collaborators by purpose"/>
@@ -28,9 +31,9 @@ function GroupCard({ group, onChanged }: { group: GroupSummary; onChanged: () =>
     { text: 'Cancel', style: 'cancel' },
     { text: 'Archive', style: 'destructive', onPress: () => archiveGroup(group.id).then(onChanged).catch((caught) => Alert.alert('Could not archive', friendlyError(caught))) }
   ]);
-  return <Card><View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}><View style={{ flex: 1 }}>
+  return <Card><View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}><Pressable accessibilityRole="button" onPress={() => router.push(`/group/${group.id}`)} style={{ flex: 1 }}>
       <Text style={{ color: palette.ink, fontSize: 18, fontWeight: '800' }}>{group.name}</Text>
-      <Text style={{ color: palette.muted, marginTop: 5 }}>{group.listCount} lists · {group.memberCount} members · You: {group.role}</Text></View>
+      <Text style={{ color: palette.muted, marginTop: 5 }}>{group.listCount} lists · {group.memberCount} members · You: {group.role}</Text></Pressable>
     <IconButton icon="people-outline" label="Members" onPress={() => router.push({ pathname: '/members', params: { type: 'group', id: group.id, name: group.name } })}/></View>
     {group.totals.length > 0 && <View style={{ marginTop: 12, gap: 4 }}>{group.totals.map((total) => <Text key={total.currency_code} style={{ color: palette.ink }}>
       Budget <Text style={{ fontWeight: '800' }}>{formatCurrency(total.budgeted_total ?? 0, total.currency_code ?? '')}</Text> · Paid <Text style={{ fontWeight: '800' }}>{formatCurrency(total.purchased_total ?? 0, total.currency_code ?? '')}</Text></Text>)}</View>}

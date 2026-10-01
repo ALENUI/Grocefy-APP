@@ -10,7 +10,9 @@ import {
 } from '@/src/services/lists';
 import { Purchase, purchaseListItem } from '@/src/services/purchases';
 import { useUserId } from '@/src/session';
+import { watchList } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
+import { useLive } from '@/src/useLive';
 import { BackHeader, Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
 
 const parseQuantity = (input: string) => { const value = Number(input.replace(',', '.')); return Number.isFinite(value) && value > 0 ? value : null; };
@@ -23,6 +25,8 @@ export default function ListDetail() {
     const [list, items, role, categories] = await Promise.all([fetchList(id), fetchListItems(id), fetchListRole(id), fetchCategories(userId)]);
     return { list, items, role, categories };
   }, [id, userId]);
+  // Collaborators' changes (new items, purchases, budget edits, role changes) appear without refreshing.
+  useLive((onChange) => watchList(id, onChange), state.reload, [id]);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ListItem | null>(null);
   const [buying, setBuying] = useState<ListItem | null>(null);
@@ -57,6 +61,7 @@ export default function ListDetail() {
         {canEdit && <IconButton icon="options-outline" label="List settings" onPress={() => setConfiguring(true)}/>}
         {role === 'owner' && <IconButton icon="person-add-outline" label="Share list" onPress={() => router.push({ pathname: '/members', params: { type: 'list', id: list.id, name: list.name } })}/>}
       </View>}/>
+    {!!state.error && <ErrorNotice error={state.error} onRetry={state.reload}/>}
     <Card style={{ backgroundColor: palette.pale }}>
       <Text style={{ color: palette.green, fontWeight: '800', fontSize: 12 }}>LIST BUDGET · {code}</Text>
       <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 26, marginTop: 4 }}>{formatCurrency(totals?.budgeted_total ?? 0, code)}</Text>
