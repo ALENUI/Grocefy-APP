@@ -7,9 +7,10 @@ Grocefy is a collaborative grocery and shopping management app for individuals, 
 - **Shopping lists:** create lists with a purpose category (Food Stuffs, Kitchen, Bathroom, Cleaning, Home Appliances, Electronics, Office Supplies, Clothing, Personal Care, Household, Other, or your own). Items can have their own category and are grouped by it while shopping. Lists can be renamed and recategorized, and their currency can change until the first item is added.
 - **Custom categories:** create, rename, and archive your own categories. Archived categories disappear from pickers but stay on history and reports.
 - **Product search:** as you type an item, Grocefy suggests products you already know, from your lists and those shared with you. Exact and prefix matches come first, then similar names. Choosing a suggestion reuses the product and its price memory.
-- **Shopping groups:** organize lists by a shared purpose, such as House Shopping or Office Shopping.
+- **Shopping groups:** organize lists by a shared purpose, such as House Shopping or Office Shopping. Each group has its own screen with its lists and totals per currency.
 - **Accounts:** sign up with a username and default currency, sign in, and reset a forgotten password by email.
 - **Collaboration:** invite people to a list or group by username or email as Viewer, Editor, or Partner; they accept or decline from their inbox.
+- **Live collaboration:** when someone adds, edits, or purchases an item, the list updates on everyone's screen without refreshing. Members, invitations, and the inbox badge (unread notifications plus invitations) also update live.
 - **Budget and purchase tracking:** set a budget per item, confirm actual purchase prices, and see savings or overruns.
 - **Price history:** every purchase records the amount, ISO 4217 currency code, and date. When an item is added again, the last price paid in the list's currency is suggested.
 - **Purchased history:** purchases grouped by day, newest first.
@@ -43,6 +44,7 @@ The Expo app accesses Supabase only through `src/services/` (auth, settings, cat
 - **Purchases** can only be created by the `purchase_list_item` function. It runs as one transaction that checks permissions, records the purchase and price history, and marks the item purchased. The purchaser, currency, and budget snapshot come from the database, never from the client.
 - **History is immutable.** Purchases and price history cannot be updated or deleted by any role, purchased items are frozen, and lists, groups, products, and categories are archived rather than deleted.
 - **Currency:** every list, purchase, price-history entry, and report stores an ISO 4217 code. A list's currency is locked once it has items. Price suggestions (`get_price_suggestion`) only use prices recorded in the list's currency, and totals are always grouped per currency.
+- **Realtime:** the collaborative tables are published to Supabase Realtime, which checks each subscriber's RLS policies before delivering a change. Screens subscribe only while they are focused and treat each event as a signal to refetch through `src/services`, so the database stays the single source of truth.
 - **Monthly finance reports** compare budgeted and purchased amounts by category, with variance = purchased − budgeted (negative means under budget). `generate_monthly_report` builds personal, group, or list reports; group and list reports are available only to owners and partners. There is one report per currency, because amounts in different currencies are never added together. Month boundaries follow the report owner's timezone setting (UTC by default). Once a month has ended, its report is final: generating it again returns the issued report unchanged, even if a category is later renamed.
 - **Scheduled reports:** where `pg_cron` is available (Supabase), the migration schedules `private.generate_previous_month_reports()` at 14:00 UTC on the 1st of each month. By then the previous month has ended in every timezone. The job finalizes group and personal reports and notifies owners and partners once; re-running it is safe.
 
@@ -76,7 +78,16 @@ select vault.create_secret('<same EMAIL_WORKER_SECRET>', 'grocefy_email_worker_s
 
 The sending domain must be verified in Resend. For local development, copy `supabase/functions/.env.example` to `supabase/functions/.env` (log provider, no emails leave the machine).
 
-The migrations also create the reference data (currency registry and default categories); `supabase/seed/seed.sql` is reserved for demo-only records. After a schema change, regenerate the client types with `npm run db:types`.
+The migrations also create the reference data (currency registry and default categories). After a schema change, regenerate the client types with `npm run db:types`.
+
+### Local development data
+
+`supabase start` (and `supabase db reset`) loads `supabase/seed/seed.sql` into the local database. It contains two demo accounts, both with the password `grocefy-demo`:
+
+- **demo@grocefy.test** owns House Shopping (Food, Kitchen, Bathroom) and Office Shopping (Stationery, and Imports in USD).
+- **alex@grocefy.test** is a partner in House Shopping and has a pending invitation to Office Shopping.
+
+The seed includes last month's purchases (so price suggestions and a finalized monthly report exist), this month's purchases, and items still to buy. Never run it against production.
 
 ### Database tests
 
@@ -88,7 +99,7 @@ The migrations also create the reference data (currency registry and default cat
 
 ### Service end-to-end tests
 
-`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, product search, custom categories, list editing, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
+`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, realtime delivery (to members only), product search, custom categories, list editing, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
 
 ## Getting Started
 
