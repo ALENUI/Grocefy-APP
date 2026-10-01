@@ -3,6 +3,68 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: Database['public']['Enums']['activity_action'];
+          actor_id: string | null;
+          created_at: string;
+          group_id: string | null;
+          id: string;
+          list_id: string | null;
+          metadata: NonNullable<Json>;
+          subject: string | null;
+        };
+        Insert: {
+          action: Database['public']['Enums']['activity_action'];
+          actor_id?: string | null;
+          created_at?: string;
+          group_id?: string | null;
+          id?: string;
+          list_id?: string | null;
+          metadata?: NonNullable<Json>;
+          subject?: string | null;
+        };
+        Update: {
+          action?: Database['public']['Enums']['activity_action'];
+          actor_id?: string | null;
+          created_at?: string;
+          group_id?: string | null;
+          id?: string;
+          list_id?: string | null;
+          metadata?: NonNullable<Json>;
+          subject?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'activity_log_actor_id_fkey';
+            columns: ['actor_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'activity_log_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'shopping_groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'activity_log_list_id_fkey';
+            columns: ['list_id'];
+            isOneToOne: false;
+            referencedRelation: 'list_totals';
+            referencedColumns: ['list_id'];
+          },
+          {
+            foreignKeyName: 'activity_log_list_id_fkey';
+            columns: ['list_id'];
+            isOneToOne: false;
+            referencedRelation: 'shopping_lists';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       categories: {
         Row: {
           archived_at: string | null;
@@ -1111,6 +1173,27 @@ export type Database = {
         };
       };
       current_confirmed_email: { Args: Record<PropertyKey, never>; Returns: string };
+      duplicate_list: {
+        Args: { new_name?: string; source_list_id: string };
+        Returns: {
+          archived_at: string | null;
+          category_id: string | null;
+          created_at: string;
+          currency_code: string;
+          description: string | null;
+          group_id: string | null;
+          id: string;
+          name: string;
+          owner_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'shopping_lists';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       generate_monthly_report: {
         Args: { target_group_id?: string; target_list_id?: string; target_month: number; target_year: number };
         Returns: {
@@ -1151,6 +1234,16 @@ export type Database = {
       is_client_request: { Args: Record<PropertyKey, never>; Returns: boolean };
       is_invitee: { Args: { invitation: Database['public']['Tables']['invitations']['Row'] }; Returns: boolean };
       is_username_available: { Args: { candidate: string }; Returns: boolean };
+      log_activity: {
+        Args: {
+          action: Database['public']['Enums']['activity_action'];
+          group_id: string;
+          list_id: string;
+          metadata?: Json;
+          subject: string;
+        };
+        Returns: undefined;
+      };
       notify_user: {
         Args: {
           notification_message: string;
@@ -1162,6 +1255,7 @@ export type Database = {
         };
         Returns: undefined;
       };
+      product_name: { Args: { product_id: string }; Returns: string };
       purchase_list_item: {
         Args: { actual_amount?: number; target_item_id: string; use_budgeted_amount?: boolean };
         Returns: {
@@ -1231,9 +1325,20 @@ export type Database = {
         };
       };
       shares_resource_with: { Args: { other_user: string }; Returns: boolean };
+      username_of: { Args: { user_id: string }; Returns: string };
       wants_email: { Args: { user_id: string }; Returns: boolean };
     };
     Enums: {
+      activity_action:
+        | 'LIST_CREATED'
+        | 'LIST_ARCHIVED'
+        | 'ITEM_ADDED'
+        | 'ITEM_EDITED'
+        | 'ITEM_REMOVED'
+        | 'ITEM_PURCHASED'
+        | 'MEMBER_ADDED'
+        | 'MEMBER_ROLE_CHANGED'
+        | 'MEMBER_REMOVED';
       email_kind: 'invitation' | 'monthly_report';
       email_status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped';
       invitation_resource: 'group' | 'list';
@@ -1346,6 +1451,17 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      activity_action: [
+        'LIST_CREATED',
+        'LIST_ARCHIVED',
+        'ITEM_ADDED',
+        'ITEM_EDITED',
+        'ITEM_REMOVED',
+        'ITEM_PURCHASED',
+        'MEMBER_ADDED',
+        'MEMBER_ROLE_CHANGED',
+        'MEMBER_REMOVED',
+      ],
       email_kind: ['invitation', 'monthly_report'],
       email_status: ['pending', 'sending', 'sent', 'failed', 'skipped'],
       invitation_resource: ['group', 'list'],
