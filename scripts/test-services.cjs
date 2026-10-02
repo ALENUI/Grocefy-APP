@@ -261,6 +261,20 @@ const as = async (name) => { await auth.signOut().catch(() => undefined); await 
   });
 
   await as('partner');
+  await check('price book, price history, and spending trend are per currency', async () => {
+    const insights = require('../src/services/insights');
+    const [riceXaf] = (await insights.fetchPriceSummaries('Rice')).filter((summary) => summary.currencyCode === 'XAF');
+    assert.equal(riceXaf.lastPrice, 23500);
+    assert.equal(riceXaf.purchaseCount, 1);
+    assert.equal(insights.priceChange(riceXaf), null, 'no previous price yet');
+    const history = await insights.fetchPriceHistory(rice.product_id);
+    assert.equal(history[0].purchase.list.name, 'Food');
+    assert.equal(await insights.fetchProductName(rice.product_id), 'Rice');
+    const now = new Date();
+    const thisMonth = (await insights.fetchSpendingTrend(6, group.id)).find((month) => month.currencyCode === 'XAF' && month.month === now.getUTCMonth() + 1);
+    assert.equal(thisMonth.purchased, 29500);
+    assert.equal(thisMonth.budgeted, 31000);
+  });
   await check('partner can read the list report and their personal report', async () => {
     const now = new Date();
     const [personal] = await finance.generateMonthlyReport(now.getUTCFullYear(), now.getUTCMonth() + 1);

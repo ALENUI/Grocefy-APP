@@ -84,10 +84,10 @@ export default function ListDetail() {
     </View>)}
     {canEdit && list.archived_at === null && <Button label="Add item" icon="add" onPress={() => setAdding(true)}/>}
     {purchased.length > 0 && <View style={{ gap: 10 }}><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16, marginTop: 6 }}>Purchased</Text>
-      {purchased.map((item) => <Card key={item.id} style={{ opacity: 0.85 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><View style={{ flex: 1 }}>
+      {purchased.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityHint="Opens price history" onPress={() => item.product && router.push(`/product/${item.product.id}`)}><Card style={{ opacity: 0.85 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><View style={{ flex: 1 }}>
         <Text style={{ color: palette.ink, fontSize: 16, fontWeight: '800', textDecorationLine: 'line-through' }}>{item.product?.name ?? 'Item'}</Text>
         <Text style={{ color: palette.muted, marginTop: 5 }}>Budget {formatCurrency(item.budgeted_total ?? 0, code)} · {item.purchased_at ? new Date(item.purchased_at).toLocaleDateString() : ''}</Text></View>
-        <Ionicons name="checkmark-circle" color={palette.green} size={24}/></View></Card>)}</View>}
+        <Ionicons name="checkmark-circle" color={palette.green} size={24}/></View></Card></Pressable>)}</View>}
     {items.length > 0 && <Button label="Duplicate list" variant="soft" icon="copy-outline" onPress={() => setDuplicating(true)}/>}
     {role === 'owner' && <Button label="Archive list" variant="danger" icon="archive-outline" onPress={confirmArchive}/>}
     <ActivityFeed entries={activity}/>
@@ -191,6 +191,7 @@ function EditItemSheet({ item, list, categories, onClose, onChanged }: { item: L
     <CategoryChips categories={choices} value={categoryId} onChange={setCategoryId} defaultLabel={list.category ? `Same as list (${list.category.name})` : 'None'}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Save" onPress={save} loading={busy}/>
+    {item?.product && <Button label="Price history" variant="soft" icon="trending-up-outline" onPress={() => { const productId = item.product?.id; onClose(); if (productId) router.push(`/product/${productId}`); }}/>}
     <Button label="Remove from list" variant="danger" icon="trash-outline" disabled={busy} onPress={() => item && run(() => removeItem(item.id))}/>
   </Sheet>;
 }

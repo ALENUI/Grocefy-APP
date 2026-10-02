@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, Text, View } from 'react-native';
 import { formatCurrency } from '@/src/currency';
 import { friendlyError } from '@/src/services/errors';
 import { fetchPurchases, PurchaseWithProduct } from '@/src/services/purchases';
@@ -39,12 +40,12 @@ export default function PurchaseHistory() {
     {first.error ? <ErrorNotice error={first.error} onRetry={first.reload}/> : !first.data ? <Loading/> : purchases.length === 0
       ? <EmptyState title="No purchases yet" message="Confirm an item purchase from a shopping list to build your history and price memory."/>
       : days.map((day) => <View key={day.key} style={{ gap: 8 }}><Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>{day.label.toUpperCase()}</Text>
-        {day.entries.map((purchase) => { const difference = purchase.budgeted_amount - purchase.purchased_amount; return <Card key={purchase.id}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+        {day.entries.map((purchase) => { const difference = purchase.budgeted_amount - purchase.purchased_amount; return <Pressable key={purchase.id} accessibilityRole="button" disabled={!purchase.product} onPress={() => purchase.product && router.push(`/product/${purchase.product.id}`)}><Card><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
           <View style={{ flex: 1 }}><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>{purchase.product?.name ?? 'Item'}</Text>
             <Text style={{ color: palette.muted, marginTop: 4 }}>{purchase.list?.name ?? 'Former list'} · {Number(purchase.quantity)} × · budget {formatCurrency(purchase.budgeted_amount, purchase.currency_code)}</Text></View>
           <View style={{ alignItems: 'flex-end' }}><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>{formatCurrency(purchase.purchased_amount, purchase.currency_code)}</Text>
             {difference !== 0 && <Text style={{ color: difference > 0 ? palette.green : palette.red, fontSize: 12, marginTop: 3 }}>{difference > 0 ? `saved ${formatCurrency(difference, purchase.currency_code)}` : `over ${formatCurrency(-difference, purchase.currency_code)}`}</Text>}</View>
-        </View></Card>; })}</View>)}
+        </View></Card></Pressable>; })}</View>)}
     {moreError && <Text style={{ color: palette.red }}>{moreError}</Text>}
     {hasMore && purchases.length > 0 && <Button label="Load older purchases" variant="soft" loading={loadingMore} onPress={loadMore}/>}
   </Screen>;
