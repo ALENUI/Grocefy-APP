@@ -6,6 +6,10 @@ enabled = true
 [db]
 major_version = 15
 
+[db.seed]
+# Demo accounts and data for local development (see the file header).
+sql_paths = ["./seed/seed.sql"]
+
 [auth]
 # Email links (confirmation, password reset) return to the app through its deep-link scheme.
 site_url = "grocefy://"

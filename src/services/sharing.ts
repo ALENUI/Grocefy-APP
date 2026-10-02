@@ -59,3 +59,17 @@ export async function fetchNotifications({ unreadOnly = false, pageSize = 50 } =
 export async function markNotificationRead(notificationId: string): Promise<void> {
   unwrap(await getSupabaseClient().from('notifications').update({ read_at: new Date().toISOString() }).eq('id', notificationId).select('id').single());
 }
+
+export type Inbox = { invitations: Invitation[]; notifications: Notification[]; unreadCount: number };
+
+/** Invitations addressed to the user (by account or confirmed email) and their notifications, with the badge count. */
+export async function fetchInbox(userId: string, email: string | undefined): Promise<Inbox> {
+  const [invitations, notifications] = await Promise.all([fetchPendingInvitations(), fetchNotifications()]);
+  const address = email?.toLowerCase();
+  const received = invitations.filter((invitation) => invitation.invitee_user_id === userId || (!invitation.invitee_user_id && !!address && invitation.invitee_email === address));
+  return { invitations: received, notifications, unreadCount: received.length + notifications.filter((notification) => !notification.read_at).length };
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  unwrap(await getSupabaseClient().from('notifications').update({ read_at: new Date().toISOString() }).eq('user_id', userId).is('read_at', null).select('id'));
+}

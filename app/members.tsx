@@ -6,7 +6,9 @@ import { fetchGroupRole } from '@/src/services/groups';
 import { fetchListRole } from '@/src/services/lists';
 import { cancelInvitation, changeMemberRole, fetchMembers, fetchPendingInvitations, inviteMember, Member, MemberRole, removeMember, ResourceType } from '@/src/services/sharing';
 import { useUserId } from '@/src/session';
+import { watchTables } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
+import { useLive } from '@/src/useLive';
 import { BackHeader, Button, Card, Chip, ErrorNotice, Field, Loading, palette, Screen, Sheet } from '@/src/ui';
 
 const roles: { role: MemberRole; description: string }[] = [
@@ -25,6 +27,7 @@ export default function Members() {
     // RLS returns only invitations the caller sent, received, or owns the resource of.
     return { members, isOwner: role === 'owner', invitations: invitations.filter((invitation) => invitation.resource_type === type && invitation.resource_id === id) };
   }, [type, id, userId]);
+  useLive((onChange) => watchTables([type === 'group' ? { table: 'group_members', filter: `group_id=eq.${id}` } : { table: 'list_members', filter: `list_id=eq.${id}` }, { table: 'invitations' }], onChange), state.reload, [type, id]);
   const [inviting, setInviting] = useState(false);
   const [managing, setManaging] = useState<Member | null>(null);
 

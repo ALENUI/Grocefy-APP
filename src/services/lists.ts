@@ -29,8 +29,11 @@ async function withTotals(lists: Omit<ListWithContext, 'totals'>[]): Promise<Lis
   return lists.map((list) => ({ ...list, totals: totals.find((entry) => entry.list_id === list.id) ?? null }));
 }
 
-export async function fetchLists(): Promise<ListWithContext[]> {
-  return withTotals(unwrap(await getSupabaseClient().from('shopping_lists').select(listSelect).is('archived_at', null).order('created_at', { ascending: false })));
+/** Active lists visible to the caller, newest first; optionally only those in one group. */
+export async function fetchLists({ groupId }: { groupId?: string } = {}): Promise<ListWithContext[]> {
+  let query = getSupabaseClient().from('shopping_lists').select(listSelect).is('archived_at', null).order('created_at', { ascending: false });
+  if (groupId) query = query.eq('group_id', groupId);
+  return withTotals(unwrap(await query));
 }
 
 export async function fetchList(listId: string): Promise<ListWithContext> {

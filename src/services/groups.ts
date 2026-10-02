@@ -1,14 +1,16 @@
-import { unwrap } from './errors';
+import { ServiceError, unwrap } from './errors';
 import { getSupabaseClient, MemberRoleWithOwner, Tables, Views } from './supabase';
 
 export type ShoppingGroup = Tables<'shopping_groups'>;
 export type GroupSummary = ShoppingGroup & { role: MemberRoleWithOwner | null; totals: Views<'group_totals'>[]; listCount: number; memberCount: number };
 
-/** Active groups visible to the caller, with their role, per-currency totals, and member counts. */
-export async function fetchGroups(userId: string): Promise<GroupSummary[]> {
+/** Active groups visible to the caller (or one group), with their role, per-currency totals, and member counts. */
+export async function fetchGroups(userId: string, { groupId }: { groupId?: string } = {}): Promise<GroupSummary[]> {
   const client = getSupabaseClient();
-  const groups = unwrap(await client.from('shopping_groups').select('*, members:group_members(user_id, role, status), lists:shopping_lists(id, archived_at)')
-    .is('archived_at', null).order('created_at'));
+  let query = client.from('shopping_groups').select('*, members:group_members(user_id, role, status), lists:shopping_lists(id, archived_at)')
+    .is('archived_at', null).order('created_at');
+  if (groupId) query = query.eq('id', groupId);
+  const groups = unwrap(await query);
   const totals = groups.length ? unwrap(await client.from('group_totals').select('*').in('group_id', groups.map((group) => group.id))) : [];
   return groups.map(({ members, lists, ...group }) => {
     const accepted = members.filter((member) => member.status === 'accepted');
@@ -20,6 +22,12 @@ export async function fetchGroups(userId: string): Promise<GroupSummary[]> {
       memberCount: accepted.length + 1
     };
   });
+}
+
+export async function fetchGroup(userId: string, groupId: string): Promise<GroupSummary> {
+  const [group] = await fetchGroups(userId, { groupId });
+  if (!group) throw new ServiceError('NOT_FOUND', 'Group not found');
+  return group;
 }
 
 /** The caller's role in a group. For UI only; the server enforces it. */

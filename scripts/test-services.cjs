@@ -23,7 +23,7 @@ Module._load = function load(request, ...rest) { return request in stubs ? stubs
 
 // --- Local stack configuration -----------------------------------------------------------------------------------
 if (!process.env.EXPO_PUBLIC_SUPABASE_URL) {
-  const status = Object.fromEntries(execSync('npx supabase status -o env', { encoding: 'utf8' }).split(/\r?\n/)
+  const status = Object.fromEntries(execSync('npx --yes supabase@latest status -o env', { encoding: 'utf8' }).split(/\r?\n/)
     .map((line) => line.match(/^([A-Z_]+)="?(.*?)"?$/)).filter(Boolean).map((match) => [match[1], match[2]]));
   if (!status.API_URL?.startsWith('http://127.0.0.1') && !status.API_URL?.startsWith('http://localhost')) throw new Error('Refusing to run against a non-local Supabase API');
   process.env.EXPO_PUBLIC_SUPABASE_URL = status.API_URL;
@@ -144,6 +144,43 @@ const as = async (name) => { await auth.signOut().catch(() => undefined); await 
     const cross = await lists.getPriceSuggestion(product.id, usd.currency_code);
     assert.equal(cross.suggestedUnitPrice, null);
     assert.equal(cross.latestCurrencyCode, 'XAF');
+  });
+  await check('realtime: a collaborator\'s change reaches list members, and only them', async () => {
+    const { createClient } = require('@supabase/supabase-js');
+    const realtime = require('../src/services/realtime');
+    const signedInClient = async (name, signUp = false) => {
+      const other = createClient(process.env.EXPO_PUBLIC_SUPABASE_URL, process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+      const { error } = signUp
+        ? await other.auth.signUp({ email: email(name), password, options: { data: { username: username(name), default_currency: 'XAF' } } })
+        : await other.auth.signInWithPassword({ email: email(name), password });
+      if (error) throw error;
+      other.realtime.setAuth((await other.auth.getSession()).data.session.access_token);
+      return other;
+    };
+    const waitFor = (predicate, ms) => new Promise((resolve) => { const started = Date.now(); const poll = setInterval(() => { if (predicate() || Date.now() - started > ms) { clearInterval(poll); resolve(predicate()); } }, 100); });
+    const subscribed = (channel) => new Promise((resolve, reject) => channel.subscribe((status) => { if (status === 'SUBSCRIBED') resolve(); if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(status)); }));
+
+    // The owner (the app's client) watches the list; an outsider listens to every list_items change.
+    let ownerEvents = 0;
+    const stopOwner = realtime.watchList(food.id, () => { ownerEvents += 1; });
+    const outsider = await signedInClient('outsider', true);
+    let outsiderEvents = 0;
+    await subscribed(outsider.channel('outsider').on('postgres_changes', { event: '*', schema: 'public', table: 'list_items' }, () => { outsiderEvents += 1; }));
+    assert.ok(await waitFor(() => getSupabaseClient().getChannels().every((channel) => channel.state === 'joined'), 15000), 'the owner\'s channel joins');
+
+    const partnerClient = await signedInClient('partner');
+    // Right after `supabase start`/`db reset`, Realtime's replication connection can take a few seconds to warm up,
+    // so the partner keeps making changes (up to 3) until one is delivered.
+    for (let attempt = 0; attempt < 3 && ownerEvents === 0; attempt++) {
+      const { error } = await partnerClient.from('list_items').insert({ list_id: food.id, product_id: rice.product_id, budgeted_unit_price: 500 + attempt, created_by: ids.partner });
+      if (error) throw error;
+      await waitFor(() => ownerEvents > 0, 8000);
+    }
+    assert.ok(ownerEvents > 0, 'the owner receives the partner\'s new item live');
+    assert.equal(await waitFor(() => outsiderEvents > 0, 2000), false, 'a non-member receives nothing (RLS applies to realtime)');
+    stopOwner();
+    await outsider.removeAllChannels();
+    await Promise.all([outsider.auth.signOut(), partnerClient.auth.signOut()]);
   });
   await check('product search ranks exact and prefix matches first', async () => {
     const results = await lists.searchProducts('ric');
