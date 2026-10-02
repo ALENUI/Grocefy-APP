@@ -11,6 +11,7 @@ Grocefy is a collaborative grocery and shopping management app for individuals, 
 - **Accounts:** sign up with a username and default currency, sign in, and reset a forgotten password by email.
 - **Collaboration:** invite people to a list or group by username or email as Viewer, Editor, or Partner; they accept or decline from their inbox.
 - **Live collaboration:** when someone adds, edits, or purchases an item, the list updates on everyone's screen without refreshing. Members, invitations, and the inbox badge (unread notifications plus invitations) also update live.
+- **Offline shopping:** your lists, list details, groups, and purchase history are saved on the phone and shown when there is no connection. Adding, editing, removing, and purchasing items work offline. The changes are queued and synced in order when the connection returns. A banner shows what is waiting, and any change the server refuses (for example, an item someone else already bought) is listed.
 - **Activity log:** each list and group shows recent activity, such as who added, edited, removed, or purchased an item (with amounts and currency) and who joined or changed roles.
 - **Duplicate lists:** copy last week's list for the next trip. Every item starts unpurchased, and budgets refresh to the latest price you paid in the list's currency (never converted from another currency).
 - **CSV exports:** each monthly report can be exported as a category statement or as its individual purchases, one currency per file, and shared or saved from the device. Exports open correctly in Excel, and text from other users can never run as a spreadsheet formula.
@@ -46,6 +47,7 @@ The Expo app accesses Supabase only through `src/services/` (auth, settings, cat
   | Change roles, remove members, move/archive a list, change its currency | | | | ✓ |
 
 - **Sharing** works only through invitations. An owner invites by username, user ID, or email with `create_invitation`. The invitee accepts or declines with `respond_to_invitation`, and the owner or inviter can withdraw a pending invite with `cancel_invitation`. Invitations expire after 7 days, and both sides get in-app notifications. Email invitations never reveal whether an address has an account, and they can only be accepted from a confirmed email address. Owners change roles or remove members, and members can leave.
+- **Offline purchases are safe to retry.** Each purchase carries a client reference, so a retry after a dropped connection returns the original purchase instead of recording a second one. An offline purchase keeps the time it happened (up to 72 hours back) unless that time falls in a monthly report that has already been finalized. In that case the sync time is used, so issued statements never change.
 - **Purchases** can only be created by the `purchase_list_item` function. It runs as one transaction that checks permissions, records the purchase and price history, and marks the item purchased. The purchaser, currency, and budget snapshot come from the database, never from the client.
 - **History is immutable.** Purchases and price history cannot be updated or deleted by any role, purchased items are frozen, and lists, groups, products, and categories are archived rather than deleted.
 - **Currency:** every list, purchase, price-history entry, and report stores an ISO 4217 code. A list's currency is locked once it has items. Price suggestions (`get_price_suggestion`) only use prices recorded in the list's currency, and totals are always grouped per currency.
@@ -96,7 +98,7 @@ The seed includes last month's purchases (so price suggestions and a finalized m
 
 ### Database tests
 
-`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, the activity log and its visibility, list duplication, price summaries and spending trends, the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery), product search ranking and visibility, and custom categories on shared lists.
+`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, the activity log and its visibility, list duplication, price summaries and spending trends, idempotent purchases and offline timestamps, the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery), product search ranking and visibility, and custom categories on shared lists.
 
 ### Continuous integration
 
@@ -113,7 +115,7 @@ Run the same checks locally before opening a pull request. `npm run lint` uses E
 
 ### Unit tests
 
-`npm run test:unit` tests the app's pure modules under Node: amount parsing and formatting per currency, CSV escaping (including formula-injection protection), and activity descriptions.
+`npm run test:unit` tests the app's pure modules under Node: amount parsing and formatting per currency, CSV escaping (including formula-injection protection), activity descriptions, and the offline queue (how queued changes appear, sync order, and refused changes).
 
 ### Email tests
 
@@ -121,7 +123,7 @@ Run the same checks locally before opening a pull request. `npm run lint` uses E
 
 ### Service end-to-end tests
 
-`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, realtime delivery (to members only), the activity feed, list duplication, report and purchase exports, price book and spending trend, product search, custom categories, list editing, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
+`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, realtime delivery (to members only), the activity feed, list duplication, report and purchase exports, price book and spending trend, offline sync retries, product search, custom categories, list editing, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
 
 ## Getting Started
 
