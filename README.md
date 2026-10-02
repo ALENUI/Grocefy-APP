@@ -16,6 +16,8 @@ Grocefy is a collaborative grocery and shopping management app for individuals, 
 - **CSV exports:** each monthly report can be exported as a category statement or as its individual purchases, one currency per file, and shared or saved from the device. Exports open correctly in Excel, and text from other users can never run as a spreadsheet formula.
 - **Budget and purchase tracking:** set a budget per item, confirm actual purchase prices, and see savings or overruns.
 - **Price history:** every purchase records the amount, ISO 4217 currency code, and date. When an item is added again, the last price paid in the list's currency is suggested.
+- **Price book and trends:** the price book lists everything you've bought, with the last price paid and the change since the previous purchase. Each product has its full price history, with last, average, lowest, and highest price and a trend chart. Every figure is shown per currency.
+- **Spending trend:** Reports show the last six months of paid vs budgeted per currency, for your own purchases or a group's.
 - **Purchased history:** purchases grouped by day, newest first.
 - **Currency preferences:** choose a default currency for new lists and override it per list. Existing lists and purchases retain their original currency.
 - **Finance reports:** monthly budget-vs-actual statements by category, for your own purchases or a whole group, with one statement per currency. Grocefy never combines currencies without conversion.
@@ -94,7 +96,7 @@ The seed includes last month's purchases (so price suggestions and a finalized m
 
 ### Database tests
 
-`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, the activity log and its visibility, list duplication, the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery), product search ranking and visibility, and custom categories on shared lists.
+`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, the activity log and its visibility, list duplication, price summaries and spending trends, the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery), product search ranking and visibility, and custom categories on shared lists.
 
 ### Continuous integration
 
@@ -119,7 +121,7 @@ Run the same checks locally before opening a pull request. `npm run lint` uses E
 
 ### Service end-to-end tests
 
-`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, realtime delivery (to members only), the activity feed, list duplication, report and purchase exports, product search, custom categories, list editing, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
+`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, realtime delivery (to members only), the activity feed, list duplication, report and purchase exports, price book and spending trend, product search, custom categories, list editing, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
 
 ## Getting Started
 

@@ -6,6 +6,8 @@ import { generateMonthlyReport, fetchMonthlyReports, MonthlyReportWithItems, Rep
 import { friendlyError } from '@/src/services/errors';
 import { fetchPurchasesInPeriod, periodLabel, purchasesCsv, reportCsv, shareCsv } from '@/src/services/exports';
 import { fetchGroups } from '@/src/services/groups';
+import { fetchSpendingTrend, TrendMonth } from '@/src/services/insights';
+import { SpendColumns } from '@/src/charts';
 import { useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
 import { Button, Card, Chip, EmptyState, ErrorNotice, Heading, Loading, palette, Screen } from '@/src/ui';
@@ -25,6 +27,7 @@ export default function Reports() {
     await generateMonthlyReport(period.year, period.month, scope);
     return fetchMonthlyReports({ scope, year: period.year, month: period.month });
   }, [period.year, period.month, scopeKey]);
+  const trend = useAsync(() => fetchSpendingTrend(6, scope.kind === 'group' ? scope.groupId : undefined), [scopeKey]);
   const isCurrentMonth = period.year === today.getFullYear() && period.month === today.getMonth() + 1;
   const shift = (delta: number) => setPeriod(({ year, month }) => { const next = new Date(year, month - 1 + delta, 1); return { year: next.getFullYear(), month: next.getMonth() + 1 }; });
 
@@ -45,7 +48,25 @@ export default function Reports() {
       : reports.data.map((report) => <ReportCard key={report.id} report={report} userId={userId}
           scopeName={scope.kind === 'group' ? groups.data?.find((group) => group.id === scope.groupId)?.name ?? 'Group' : 'My purchases'}/>)}
     {reports.data && reports.data.length > 1 && <Text style={{ color: palette.muted, lineHeight: 20 }}>Purchases in different currencies are reported separately. Grocefy never adds different currencies together.</Text>}
+    {trend.data && trend.data.length > 0 && <SpendingTrend months={trend.data}/>}
   </Screen>;
+}
+
+/** Last six months of paid vs budgeted, one chart per currency. Months without purchases show as empty columns. */
+function SpendingTrend({ months }: { months: TrendMonth[] }) {
+  const now = new Date();
+  const window = Array.from({ length: 6 }, (_, index) => new Date(now.getFullYear(), now.getMonth() - 5 + index, 1));
+  const currencies = [...new Set(months.map((month) => month.currencyCode))].sort();
+  return <View style={{ gap: 10 }}>
+    <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16, marginTop: 6 }}>Last 6 months</Text>
+    {currencies.map((code) => <Card key={code}>
+      <Text style={{ color: palette.green, fontWeight: '800', fontSize: 12, marginBottom: 10 }}>CURRENCY: {code}</Text>
+      <SpendColumns currencyCode={code} months={window.map((date) => {
+        const entry = months.find((month) => month.currencyCode === code && month.year === date.getFullYear() && month.month === date.getMonth() + 1);
+        return { label: date.toLocaleDateString(undefined, { month: 'short' }), paid: entry?.purchased ?? 0, budget: entry?.budgeted ?? 0 };
+      })}/>
+    </Card>)}
+  </View>;
 }
 
 function ReportCard({ report, scopeName, userId }: { report: MonthlyReportWithItems; scopeName: string; userId: string }) {
