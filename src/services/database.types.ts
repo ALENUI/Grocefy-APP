@@ -872,6 +872,97 @@ export type Database = {
           },
         ];
       };
+      push_outbox: {
+        Row: {
+          attempts: number;
+          body: string;
+          created_at: string;
+          data: NonNullable<Json>;
+          dedupe_key: string | null;
+          id: string;
+          last_error: string | null;
+          locked_at: string | null;
+          next_attempt_at: string;
+          sent_at: string | null;
+          status: Database['public']['Enums']['email_status'];
+          title: string;
+          user_id: string;
+        };
+        Insert: {
+          attempts?: number;
+          body: string;
+          created_at?: string;
+          data?: NonNullable<Json>;
+          dedupe_key?: string | null;
+          id?: string;
+          last_error?: string | null;
+          locked_at?: string | null;
+          next_attempt_at?: string;
+          sent_at?: string | null;
+          status?: Database['public']['Enums']['email_status'];
+          title: string;
+          user_id: string;
+        };
+        Update: {
+          attempts?: number;
+          body?: string;
+          created_at?: string;
+          data?: NonNullable<Json>;
+          dedupe_key?: string | null;
+          id?: string;
+          last_error?: string | null;
+          locked_at?: string | null;
+          next_attempt_at?: string;
+          sent_at?: string | null;
+          status?: Database['public']['Enums']['email_status'];
+          title?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'push_outbox_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      push_tokens: {
+        Row: {
+          created_at: string;
+          id: string;
+          last_seen_at: string;
+          platform: string | null;
+          token: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          platform?: string | null;
+          token: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          platform?: string | null;
+          token?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'push_tokens_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       shopping_groups: {
         Row: {
           archived_at: string | null;
@@ -994,6 +1085,7 @@ export type Database = {
           default_currency: string;
           email_notifications: boolean;
           language: string | null;
+          push_notifications: boolean;
           timezone: string | null;
           updated_at: string;
           user_id: string;
@@ -1003,6 +1095,7 @@ export type Database = {
           default_currency?: string;
           email_notifications?: boolean;
           language?: string | null;
+          push_notifications?: boolean;
           timezone?: string | null;
           updated_at?: string;
           user_id: string;
@@ -1012,6 +1105,7 @@ export type Database = {
           default_currency?: string;
           email_notifications?: boolean;
           language?: string | null;
+          push_notifications?: boolean;
           timezone?: string | null;
           updated_at?: string;
           user_id?: string;
@@ -1142,8 +1236,36 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      claim_push_batch: {
+        Args: { batch_size?: number };
+        Returns: {
+          attempts: number;
+          body: string;
+          created_at: string;
+          data: NonNullable<Json>;
+          dedupe_key: string | null;
+          id: string;
+          last_error: string | null;
+          locked_at: string | null;
+          next_attempt_at: string;
+          sent_at: string | null;
+          status: Database['public']['Enums']['email_status'];
+          title: string;
+          user_id: string;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'push_outbox';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       complete_email: {
         Args: { email_id: string; error_message?: string; outcome: Database['public']['Enums']['email_status'] };
+        Returns: undefined;
+      };
+      complete_push: {
+        Args: { error_message?: string; outcome: Database['public']['Enums']['email_status']; push_id: string };
         Returns: undefined;
       };
       create_invitation: {
@@ -1299,6 +1421,8 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      queue_push: { Args: { body: string; data: Json; dedupe_key: string; recipient: string; title: string }; Returns: undefined };
+      register_push_token: { Args: { platform?: string; token: string }; Returns: undefined };
       require_active_currency: { Args: { code: string }; Returns: undefined };
       respond_to_invitation: {
         Args: { accept: boolean; target_invitation_id: string };
@@ -1355,8 +1479,10 @@ export type Database = {
           year: number;
         }[];
       };
+      unregister_push_token: { Args: { token: string }; Returns: undefined };
       username_of: { Args: { user_id: string }; Returns: string };
       wants_email: { Args: { user_id: string }; Returns: boolean };
+      wants_push: { Args: { user_id: string }; Returns: boolean };
     };
     Enums: {
       activity_action:
