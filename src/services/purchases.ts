@@ -3,16 +3,20 @@ import { getSupabaseClient, Tables } from './supabase';
 
 export type Purchase = Tables<'purchases'>;
 export type PurchaseWithProduct = Purchase & { product: Pick<Tables<'products'>, 'id' | 'name'> | null; list: Pick<Tables<'shopping_lists'>, 'id' | 'name'> | null };
-export type PurchaseInput = { actualAmount: number } | { useBudgetedAmount: true };
+/** clientRef makes retries idempotent; purchasedAt keeps the time of a purchase made offline (the server bounds it). */
+export type PurchaseInput = ({ actualAmount: number } | { useBudgetedAmount: true }) & { clientRef?: string; purchasedAt?: string };
 
 /**
  * Calls the database transaction; clients never create purchases or history records directly.
  * The purchaser, currency, and budget snapshot are derived server-side from the item and list.
  */
 export async function purchaseListItem(listItemId: string, input: PurchaseInput): Promise<Purchase> {
-  const args = 'useBudgetedAmount' in input
-    ? { target_item_id: listItemId, use_budgeted_amount: true }
-    : { target_item_id: listItemId, actual_amount: input.actualAmount };
+  const args = {
+    target_item_id: listItemId,
+    ...('useBudgetedAmount' in input ? { use_budgeted_amount: true } : { actual_amount: input.actualAmount }),
+    ...(input.clientRef ? { client_ref: input.clientRef } : {}),
+    ...(input.purchasedAt ? { purchased_at: input.purchasedAt } : {})
+  };
   return unwrap(await getSupabaseClient().rpc('purchase_list_item', args));
 }
 
