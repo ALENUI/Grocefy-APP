@@ -3,10 +3,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { amountInputValue, formatCurrency, parseAmount } from '@/src/currency';
+import { ActivityFeed } from '@/src/ActivityFeed';
+import { fetchActivity } from '@/src/services/activity';
 import { Category, fetchCategories } from '@/src/services/categories';
 import { friendlyError } from '@/src/services/errors';
 import {
-  addItem, archiveList, fetchList, fetchListItems, fetchListRole, findProduct, getPriceSuggestion, ListItem, ListWithContext, PriceSuggestion, removeItem, searchProducts, updateItem, updateList
+  addItem, archiveList, duplicateList, fetchList, fetchListItems, fetchListRole, findProduct, getPriceSuggestion, ListItem, ListWithContext, PriceSuggestion, removeItem, searchProducts, updateItem, updateList
 } from '@/src/services/lists';
 import { Purchase, purchaseListItem } from '@/src/services/purchases';
 import { useUserId } from '@/src/session';
@@ -22,8 +24,8 @@ export default function ListDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useUserId();
   const state = useAsync(async () => {
-    const [list, items, role, categories] = await Promise.all([fetchList(id), fetchListItems(id), fetchListRole(id), fetchCategories(userId)]);
-    return { list, items, role, categories };
+    const [list, items, role, categories, activity] = await Promise.all([fetchList(id), fetchListItems(id), fetchListRole(id), fetchCategories(userId), fetchActivity({ listId: id })]);
+    return { list, items, role, categories, activity };
   }, [id, userId]);
   // Collaborators' changes (new items, purchases, budget edits, role changes) appear without refreshing.
   useLive((onChange) => watchList(id, onChange), state.reload, [id]);
@@ -31,10 +33,11 @@ export default function ListDetail() {
   const [editing, setEditing] = useState<ListItem | null>(null);
   const [buying, setBuying] = useState<ListItem | null>(null);
   const [configuring, setConfiguring] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
 
   if (state.error && !state.data) return <Screen><BackHeader title="Shopping list"/><ErrorNotice error={state.error} onRetry={state.reload}/></Screen>;
   if (!state.data) return <Screen><BackHeader title="Shopping list"/><Loading/></Screen>;
-  const { list, items, role, categories } = state.data;
+  const { list, items, role, categories, activity } = state.data;
   const code = list.currency_code;
   const canEdit = role === 'owner' || role === 'partner' || role === 'editor';
   const canPurchase = role === 'owner' || role === 'partner';
@@ -85,11 +88,14 @@ export default function ListDetail() {
         <Text style={{ color: palette.ink, fontSize: 16, fontWeight: '800', textDecorationLine: 'line-through' }}>{item.product?.name ?? 'Item'}</Text>
         <Text style={{ color: palette.muted, marginTop: 5 }}>Budget {formatCurrency(item.budgeted_total ?? 0, code)} · {item.purchased_at ? new Date(item.purchased_at).toLocaleDateString() : ''}</Text></View>
         <Ionicons name="checkmark-circle" color={palette.green} size={24}/></View></Card>)}</View>}
+    {items.length > 0 && <Button label="Duplicate list" variant="soft" icon="copy-outline" onPress={() => setDuplicating(true)}/>}
     {role === 'owner' && <Button label="Archive list" variant="danger" icon="archive-outline" onPress={confirmArchive}/>}
+    <ActivityFeed entries={activity}/>
 
     <AddItemSheet visible={adding} onClose={() => setAdding(false)} list={list} categories={categories} userId={userId} onAdded={state.reload}/>
     <EditItemSheet item={editing} list={list} categories={categories} onClose={() => setEditing(null)} onChanged={state.reload}/>
     <PurchaseSheet item={buying} currencyCode={code} onClose={() => setBuying(null)} onPurchased={state.reload}/>
+    <DuplicateSheet visible={duplicating} list={list} onClose={() => setDuplicating(false)}/>
     <ListSettingsSheet visible={configuring} list={list} categories={categories} isOwner={role === 'owner'} hasItems={items.length > 0} onClose={() => setConfiguring(false)} onChanged={state.reload}/>
   </Screen>;
 }
@@ -186,6 +192,23 @@ function EditItemSheet({ item, list, categories, onClose, onChanged }: { item: L
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Save" onPress={save} loading={busy}/>
     <Button label="Remove from list" variant="danger" icon="trash-outline" disabled={busy} onPress={() => item && run(() => removeItem(item.id))}/>
+  </Sheet>;
+}
+
+/** Copy for the next shopping trip: same items and quantities, budgets refreshed to the latest same-currency price. */
+function DuplicateSheet({ visible, list, onClose }: { visible: boolean; list: ListWithContext; onClose: () => void }) {
+  const [name, setName] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
+  useEffect(() => { if (visible) { setName(`${list.name} (copy)`); setError(undefined); } }, [visible, list.name]);
+  const duplicate = async () => {
+    if (!name.trim()) return setError('Give the new list a name.');
+    setBusy(true); setError(undefined);
+    try { const copy = await duplicateList(list.id, name.trim()); onClose(); router.push(`/list/${copy.id}`); }
+    catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
+  };
+  return <Sheet visible={visible} title="Duplicate list" subtitle={`All items start unpurchased. Budgets use the latest price you paid in ${list.currency_code} where known.`} onClose={onClose}>
+    <Field label="New list name" value={name} onChangeText={setName}/>
+    {error && <Text style={{ color: palette.red }}>{error}</Text>}
+    <Button label="Create copy" icon="copy-outline" onPress={duplicate} loading={busy}/>
   </Sheet>;
 }
 

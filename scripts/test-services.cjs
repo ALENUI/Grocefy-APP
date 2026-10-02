@@ -16,7 +16,9 @@ const stubs = {
     getItem: async (key) => memory.get(key) ?? null, setItem: async (key, value) => { memory.set(key, value); }, removeItem: async (key) => { memory.delete(key); }
   } },
   'expo-linking': { createURL: (path) => `grocefy://${path.replace(/^\//, '')}` },
-  'react-native-url-polyfill/auto': {}
+  'react-native-url-polyfill/auto': {},
+  'expo-file-system': { cacheDirectory: 'file:///cache/', EncodingType: { UTF8: 'utf8' }, writeAsStringAsync: async () => undefined },
+  'expo-sharing': { isAvailableAsync: async () => false, shareAsync: async () => undefined }
 };
 const originalLoad = Module._load;
 Module._load = function load(request, ...rest) { return request in stubs ? stubs[request] : originalLoad.call(this, request, ...rest); };
@@ -38,6 +40,9 @@ const lists = require('../src/services/lists');
 const purchases = require('../src/services/purchases');
 const sharing = require('../src/services/sharing');
 const finance = require('../src/services/finance');
+const activity = require('../src/services/activity');
+const exportsService = require('../src/services/exports');
+const { describeActivity } = require('../src/activity');
 const { ServiceError } = require('../src/services/errors');
 const { getSupabaseClient } = require('../src/services/supabase');
 
@@ -220,6 +225,24 @@ const as = async (name) => { await auth.signOut().catch(() => undefined); await 
     assert.equal(summary.listCount, 1);
     assert.equal(summary.totals[0].purchased_total, 29500);
   });
+  await check('the list activity feed names who did what', async () => {
+    const entries = await activity.fetchActivity({ listId: food.id });
+    const lines = entries.map(describeActivity);
+    assert.ok(lines.some((line) => line.includes(' purchased Rice for ')), JSON.stringify(lines));
+    const purchase = entries.find((entry) => entry.action === 'ITEM_PURCHASED' && entry.subject === 'Rice');
+    assert.equal(purchase.actor.username, username('partner'));
+    assert.ok(entries.some((entry) => entry.action === 'MEMBER_ROLE_CHANGED' && entry.subject === username('editor')));
+    const groupEntries = await activity.fetchActivity({ groupId: group.id });
+    assert.ok(groupEntries.some((entry) => entry.action === 'LIST_CREATED' && entry.subject === 'Food'), 'group feed includes its lists\' activity');
+  });
+  await check('duplicating a list refreshes budgets from same-currency purchases', async () => {
+    const copy = await lists.duplicateList(food.id, 'Food again');
+    const items = await lists.fetchListItems(copy.id);
+    assert.equal(copy.group_id, group.id);
+    assert.ok(items.every((item) => item.status === 'pending'));
+    assert.equal(items.find((item) => item.product.name === 'Rice').budgeted_unit_price, 23500);
+    await lists.archiveList(copy.id);
+  });
   await check('monthly group report aggregates by category', async () => {
     const now = new Date();
     const [report] = await finance.generateMonthlyReport(now.getUTCFullYear(), now.getUTCMonth() + 1, { kind: 'group', groupId: group.id });
@@ -228,6 +251,13 @@ const as = async (name) => { await auth.signOut().catch(() => undefined); await 
     assert.equal(stored.total_budget, 31000);
     assert.equal(stored.total_purchased, 29500);
     assert.equal(stored.items[0].category_name_snapshot, 'Food Stuffs');
+    const statement = exportsService.reportCsv(stored, 'House Shopping').split('\r\n');
+    assert.equal(statement[0], 'Period,Scope,Currency,Category,Items,Budgeted,Purchased,Variance');
+    assert.ok(statement.some((line) => line.endsWith(',TOTAL,2,31000,29500,-1500')), statement.join(' | '));
+    const lines = await exportsService.fetchPurchasesInPeriod({ groupId: group.id }, stored.period_start, stored.period_end, 'XAF');
+    assert.deepEqual(lines.map((line) => line.product.name).sort(), ['Cooking Oil', 'Rice']);
+    assert.match(exportsService.purchasesCsv(lines), /,Rice,Food,Food Stuffs,1,25000,23500,XAF\r\n/);
+    assert.equal((await exportsService.fetchPurchasesInPeriod({ groupId: group.id }, stored.period_start, stored.period_end, 'USD')).length, 0, 'exports are per currency');
   });
 
   await as('partner');

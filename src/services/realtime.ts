@@ -1,7 +1,7 @@
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabaseClient } from './supabase';
 
-type Watched = { table: 'shopping_lists' | 'list_items' | 'purchases' | 'list_members' | 'group_members' | 'notifications' | 'invitations'; filter?: string };
+type Watched = { table: 'shopping_lists' | 'list_items' | 'purchases' | 'list_members' | 'group_members' | 'notifications' | 'invitations' | 'activity_log'; filter?: string };
 
 let channelCount = 0;
 
@@ -27,7 +27,8 @@ export const watchList = (listId: string, onChange: () => void) => watchTables([
   { table: 'shopping_lists', filter: `id=eq.${listId}` },
   { table: 'list_items', filter: `list_id=eq.${listId}` },
   { table: 'purchases', filter: `list_id=eq.${listId}` },
-  { table: 'list_members', filter: `list_id=eq.${listId}` }
+  { table: 'list_members', filter: `list_id=eq.${listId}` },
+  { table: 'activity_log', filter: `list_id=eq.${listId}` }
 ], onChange);
 
 /** Lists overview: any list, item, or purchase the user can see. */
@@ -41,5 +42,6 @@ export const watchGroup = (groupId: string, onChange: () => void) => watchTables
   { table: 'group_members', filter: `group_id=eq.${groupId}` },
   { table: 'shopping_lists', filter: `group_id=eq.${groupId}` },
   { table: 'purchases', filter: `group_id=eq.${groupId}` },
-  { table: 'list_items' }
+  { table: 'list_items' },
+  { table: 'activity_log', filter: `group_id=eq.${groupId}` }
 ], onChange);

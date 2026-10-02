@@ -11,6 +11,9 @@ Grocefy is a collaborative grocery and shopping management app for individuals, 
 - **Accounts:** sign up with a username and default currency, sign in, and reset a forgotten password by email.
 - **Collaboration:** invite people to a list or group by username or email as Viewer, Editor, or Partner; they accept or decline from their inbox.
 - **Live collaboration:** when someone adds, edits, or purchases an item, the list updates on everyone's screen without refreshing. Members, invitations, and the inbox badge (unread notifications plus invitations) also update live.
+- **Activity log:** each list and group shows recent activity, such as who added, edited, removed, or purchased an item (with amounts and currency) and who joined or changed roles.
+- **Duplicate lists:** copy last week's list for the next trip. Every item starts unpurchased, and budgets refresh to the latest price you paid in the list's currency (never converted from another currency).
+- **CSV exports:** each monthly report can be exported as a category statement or as its individual purchases, one currency per file, and shared or saved from the device. Exports open correctly in Excel, and text from other users can never run as a spreadsheet formula.
 - **Budget and purchase tracking:** set a budget per item, confirm actual purchase prices, and see savings or overruns.
 - **Price history:** every purchase records the amount, ISO 4217 currency code, and date. When an item is added again, the last price paid in the list's currency is suggested.
 - **Purchased history:** purchases grouped by day, newest first.
@@ -91,7 +94,11 @@ The seed includes last month's purchases (so price suggestions and a finalized m
 
 ### Database tests
 
-`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery), product search ranking and visibility, and custom categories on shared lists.
+`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, the activity log and its visibility, list duplication, the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery), product search ranking and visibility, and custom categories on shared lists.
+
+### Unit tests
+
+`npm run test:unit` tests the app's pure modules under Node: amount parsing and formatting per currency, CSV escaping (including formula-injection protection), and activity descriptions.
 
 ### Email tests
 
@@ -99,7 +106,7 @@ The seed includes last month's purchases (so price suggestions and a finalized m
 
 ### Service end-to-end tests
 
-`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, realtime delivery (to members only), product search, custom categories, list editing, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
+`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, realtime delivery (to members only), the activity feed, list duplication, report and purchase exports, product search, custom categories, list editing, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
 
 ## Getting Started
 
