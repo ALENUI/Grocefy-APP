@@ -1256,6 +1256,21 @@ export type Database = {
         Returns: undefined;
       };
       product_name: { Args: { product_id: string }; Returns: string };
+      product_price_summary: {
+        Args: { result_limit?: number; search?: string };
+        Returns: {
+          average_price: number;
+          currency_code: string;
+          last_price: number;
+          last_purchased_at: string;
+          max_price: number;
+          min_price: number;
+          previous_price: number;
+          product_id: string;
+          product_name: string;
+          purchase_count: number;
+        }[];
+      };
       purchase_list_item: {
         Args: { actual_amount?: number; target_item_id: string; use_budgeted_amount?: boolean };
         Returns: {
@@ -1325,6 +1340,17 @@ export type Database = {
         };
       };
       shares_resource_with: { Args: { other_user: string }; Returns: boolean };
+      spending_trend: {
+        Args: { months?: number; target_group_id?: string };
+        Returns: {
+          budgeted: number;
+          currency_code: string;
+          month: number;
+          purchase_count: number;
+          purchased: number;
+          year: number;
+        }[];
+      };
       username_of: { Args: { user_id: string }; Returns: string };
       wants_email: { Args: { user_id: string }; Returns: boolean };
     };
