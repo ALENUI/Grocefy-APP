@@ -96,6 +96,19 @@ The seed includes last month's purchases (so price suggestions and a finalized m
 
 `npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, the activity log and its visibility, list duplication, the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery), product search ranking and visibility, and custom categories on shared lists.
 
+### Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request to `Development` or `main` and on pushes to `Development`:
+
+| Job | Runs |
+|---|---|
+| Typecheck, lint, unit and email tests | `npm run typecheck`, `typecheck:functions`, `lint`, `test:unit`, `test:email` |
+| Database tests | `npm run test:db` (disposable PostgreSQL 15 in Docker) |
+| Bundle | `npx expo install --check` and an Android and iOS export |
+| Service end-to-end | `supabase start`, then `npm run test:services`, including realtime and the `send-emails` function |
+
+Run the same checks locally before opening a pull request. `npm run lint` uses Expo's ESLint config and fails on any warning.
+
 ### Unit tests
 
 `npm run test:unit` tests the app's pure modules under Node: amount parsing and formatting per currency, CSV escaping (including formula-injection protection), and activity descriptions.
@@ -135,7 +148,7 @@ Use `npm run android` or `npm run ios` for a platform-specific start. The app re
 
 ## Development Workflow
 
-`main` is reserved for reviewed/released code. Work on descriptive feature branches and open pull requests targeting `Development`; do not merge directly into `main`. The project owner reviews `Development` before merging it into `main`.
+`main` is reserved for reviewed/released code. Work on descriptive feature branches and open pull requests targeting `Development`; do not merge directly into `main`. Pull requests should pass CI before they are merged. The project owner reviews `Development` before merging it into `main`.
 
 ## Project Status
 
