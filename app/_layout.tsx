@@ -3,6 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { OfflineBanner } from '@/src/offline/OfflineBanner';
+import { OfflineProvider } from '@/src/offline/OfflineProvider';
 import { SessionProvider, useSession } from '@/src/session';
 import { Button, Loading, palette, styles } from '@/src/ui';
 
@@ -23,10 +25,10 @@ function AuthGate() {
   if (status === 'unconfigured') return <View style={[styles.screen, { justifyContent: 'center', padding: 24 }]}><Text style={styles.title}>Grocefy is not configured</Text>
     <Text style={[styles.subtitle, { lineHeight: 21 }]}>Copy .env.example to .env and set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY, then restart Expo.</Text></View>;
   if (status === 'loading') return <View style={[styles.screen, { justifyContent: 'center' }]}><Loading/></View>;
-  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.cream } }}>
+  return <View style={{ flex: 1 }}><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.cream } }}>
     <Stack.Screen name="(auth)"/><Stack.Screen name="(tabs)"/>
     <Stack.Screen name="create-list" options={{ presentation: 'modal' }}/>
-  </Stack>;
+  </Stack>{status === 'signedIn' && <OfflineBanner/>}</View>;
 }
 
 /** Shown instead of a blank screen if a screen throws while rendering; the session is kept. */
@@ -41,5 +43,5 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 export default function Layout() {
-  return <SafeAreaProvider><SessionProvider><StatusBar style="dark"/><AuthGate/></SessionProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><SessionProvider><OfflineProvider><StatusBar style="dark"/><AuthGate/></OfflineProvider></SessionProvider></SafeAreaProvider>;
 }

@@ -10,8 +10,10 @@ import { friendlyError } from '@/src/services/errors';
 import {
   addItem, archiveList, duplicateList, fetchList, fetchListItems, fetchListRole, findProduct, getPriceSuggestion, ListItem, ListWithContext, PriceSuggestion, removeItem, searchProducts, updateItem, updateList
 } from '@/src/services/lists';
-import { Purchase, purchaseListItem } from '@/src/services/purchases';
+import { purchaseListItem } from '@/src/services/purchases';
 import { useUserId } from '@/src/session';
+import { useOffline } from '@/src/offline/OfflineProvider';
+import { applyQueue, DisplayItem } from '@/src/offline/queue';
 import { watchList } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
@@ -26,9 +28,13 @@ export default function ListDetail() {
   const state = useAsync(async () => {
     const [list, items, role, categories, activity] = await Promise.all([fetchList(id), fetchListItems(id), fetchListRole(id), fetchCategories(userId), fetchActivity({ listId: id })]);
     return { list, items, role, categories, activity };
-  }, [id, userId]);
+  }, [id, userId], { cacheKey: `list:${id}` });
   // Collaborators' changes (new items, purchases, budget edits, role changes) appear without refreshing.
   useLive((onChange) => watchList(id, onChange), state.reload, [id]);
+  // Changes made offline are shown immediately and replaced by server state once they sync.
+  const { ops, syncedVersion } = useOffline();
+  const { reload } = state;
+  useEffect(() => { if (syncedVersion) reload(); }, [syncedVersion, reload]);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ListItem | null>(null);
   const [buying, setBuying] = useState<ListItem | null>(null);
@@ -37,7 +43,9 @@ export default function ListDetail() {
 
   if (state.error && !state.data) return <Screen><BackHeader title="Shopping list"/><ErrorNotice error={state.error} onRetry={state.reload}/></Screen>;
   if (!state.data) return <Screen><BackHeader title="Shopping list"/><Loading/></Screen>;
-  const { list, items, role, categories, activity } = state.data;
+  const { list, role, categories, activity } = state.data;
+  const items = applyQueue(state.data.items, ops, id);
+  const pendingChanges = ops.filter((op) => op.listId === id).length;
   const code = list.currency_code;
   const canEdit = role === 'owner' || role === 'partner' || role === 'editor';
   const canPurchase = role === 'owner' || role === 'partner';
@@ -46,7 +54,7 @@ export default function ListDetail() {
   const purchased = items.filter((item) => item.status === 'purchased');
   const saved = (totals?.purchased_budgeted_total ?? 0) - (totals?.purchased_total ?? 0);
   // Group what is left to buy by category, like aisles in a store. Items without a category use the list's.
-  const sections = pending.reduce<{ name: string; items: ListItem[] }[]>((all, item) => {
+  const sections = pending.reduce<{ name: string; items: DisplayItem[] }[]>((all, item) => {
     const name = item.category?.name ?? list.category?.name ?? 'Uncategorized';
     const section = all.find((entry) => entry.name === name);
     if (section) section.items.push(item); else all.push({ name, items: [item] });
@@ -65,11 +73,13 @@ export default function ListDetail() {
         {role === 'owner' && <IconButton icon="person-add-outline" label="Share list" onPress={() => router.push({ pathname: '/members', params: { type: 'list', id: list.id, name: list.name } })}/>}
       </View>}/>
     {!!state.error && <ErrorNotice error={state.error} onRetry={state.reload}/>}
+    {state.stale && <Text style={{ color: palette.muted }}>Offline · showing this list as saved {state.savedAt ? new Date(state.savedAt).toLocaleString() : 'earlier'}. Changes you make will sync later.</Text>}
     <Card style={{ backgroundColor: palette.pale }}>
       <Text style={{ color: palette.green, fontWeight: '800', fontSize: 12 }}>LIST BUDGET · {code}</Text>
       <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 26, marginTop: 4 }}>{formatCurrency(totals?.budgeted_total ?? 0, code)}</Text>
       <Text style={{ color: palette.muted, marginTop: 5 }}>Paid {formatCurrency(totals?.purchased_total ?? 0, code)} · {totals?.purchased_count ?? 0}/{totals?.item_count ?? 0} items</Text>
       {(totals?.purchased_count ?? 0) > 0 && <Text style={{ color: saved >= 0 ? palette.green : palette.red, marginTop: 4, fontWeight: '700' }}>{saved >= 0 ? `Saved ${formatCurrency(saved, code)}` : `Over budget by ${formatCurrency(-saved, code)}`} on purchased items</Text>}
+      {pendingChanges > 0 && <Text style={{ color: palette.muted, marginTop: 6, fontSize: 12 }}>Totals update after {pendingChanges} {pendingChanges === 1 ? 'change syncs' : 'changes sync'}.</Text>}
     </Card>
     {role === 'viewer' && <Text style={{ color: palette.muted }}>You can view this list. Ask the owner for Editor or Partner access to make changes.</Text>}
     {role === 'editor' && <Text style={{ color: palette.muted }}>Editors can add items and budgets. Partners and the owner confirm purchases.</Text>}
@@ -78,7 +88,7 @@ export default function ListDetail() {
       {sections.length > 1 && <Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>{section.name.toUpperCase()}</Text>}
       {section.items.map((item) => <Card key={item.id}><View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
         <Pressable disabled={!canEdit} onPress={() => setEditing(item)} style={{ flex: 1 }}><Text style={{ color: palette.ink, fontSize: 16, fontWeight: '800' }}>{item.product?.name ?? 'Item'}</Text>
-          <Text style={{ color: palette.muted, marginTop: 5 }}>{quantityLabel(item)} × {formatCurrency(item.budgeted_unit_price, code)} = {formatCurrency(item.budgeted_total ?? 0, code)}</Text></Pressable>
+          <Text style={{ color: palette.muted, marginTop: 5 }}>{quantityLabel(item)} × {formatCurrency(item.budgeted_unit_price, code)} = {formatCurrency(item.budgeted_total ?? 0, code)}{item.pendingSync ? ' · waiting to sync' : ''}</Text></Pressable>
         {canPurchase && <Pressable accessibilityLabel={`Purchase ${item.product?.name}`} onPress={() => setBuying(item)} style={{ backgroundColor: palette.pale, padding: 12, borderRadius: 12 }}><Ionicons name="checkmark" color={palette.green} size={22}/></Pressable>}
       </View></Card>)}
     </View>)}
@@ -86,7 +96,7 @@ export default function ListDetail() {
     {purchased.length > 0 && <View style={{ gap: 10 }}><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16, marginTop: 6 }}>Purchased</Text>
       {purchased.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityHint="Opens price history" onPress={() => item.product && router.push(`/product/${item.product.id}`)}><Card style={{ opacity: 0.85 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><View style={{ flex: 1 }}>
         <Text style={{ color: palette.ink, fontSize: 16, fontWeight: '800', textDecorationLine: 'line-through' }}>{item.product?.name ?? 'Item'}</Text>
-        <Text style={{ color: palette.muted, marginTop: 5 }}>Budget {formatCurrency(item.budgeted_total ?? 0, code)} · {item.purchased_at ? new Date(item.purchased_at).toLocaleDateString() : ''}</Text></View>
+        <Text style={{ color: palette.muted, marginTop: 5 }}>Budget {formatCurrency(item.budgeted_total ?? 0, code)} · {item.purchased_at ? new Date(item.purchased_at).toLocaleDateString() : ''}{item.pendingSync ? ' · waiting to sync' : ''}</Text></View>
         <Ionicons name="checkmark-circle" color={palette.green} size={24}/></View></Card></Pressable>)}</View>}
     {items.length > 0 && <Button label="Duplicate list" variant="soft" icon="copy-outline" onPress={() => setDuplicating(true)}/>}
     {role === 'owner' && <Button label="Archive list" variant="danger" icon="archive-outline" onPress={confirmArchive}/>}
@@ -94,7 +104,7 @@ export default function ListDetail() {
 
     <AddItemSheet visible={adding} onClose={() => setAdding(false)} list={list} categories={categories} userId={userId} onAdded={state.reload}/>
     <EditItemSheet item={editing} list={list} categories={categories} onClose={() => setEditing(null)} onChanged={state.reload}/>
-    <PurchaseSheet item={buying} currencyCode={code} onClose={() => setBuying(null)} onPurchased={state.reload}/>
+    <PurchaseSheet item={buying} listId={list.id} currencyCode={code} onClose={() => setBuying(null)} onPurchased={state.reload}/>
     <DuplicateSheet visible={duplicating} list={list} onClose={() => setDuplicating(false)}/>
     <ListSettingsSheet visible={configuring} list={list} categories={categories} isOwner={role === 'owner'} hasItems={items.length > 0} onClose={() => setConfiguring(false)} onChanged={state.reload}/>
   </Screen>;
@@ -113,6 +123,7 @@ function CategoryChips({ categories, value, onChange, defaultLabel }: { categori
 
 function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: { visible: boolean; onClose: () => void; list: ListWithContext; categories: Category[]; userId: string; onAdded: () => void }) {
   const currencyCode = list.currency_code;
+  const { submit, newId } = useOffline();
   const [name, setName] = useState(''); const [productId, setProductId] = useState<string>(); const [quantity, setQuantity] = useState('1'); const [price, setPrice] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [matches, setMatches] = useState<{ id: string; name: string }[]>([]);
@@ -147,8 +158,14 @@ function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: {
     if (count === null) return setError('Quantity must be greater than zero.');
     if (amount === null) return setError(`Enter a valid unit budget in ${currencyCode}.`);
     setBusy(true); setError(undefined);
-    try { await addItem(userId, { listId: list.id, productName: name, productId, quantity: count, budgetedUnitPrice: amount, categoryId }); onAdded(); onClose(); }
-    catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
+    const itemId = newId();
+    const productName = name.trim();
+    try {
+      await submit({ kind: 'addItem', listId: list.id, label: `Add ${productName}`, itemId, productName, productId, quantity: count, budgetedUnitPrice: amount, categoryId,
+        categoryName: categories.find((category) => category.id === categoryId)?.name ?? null },
+      () => addItem(userId, { id: itemId, listId: list.id, productName, productId, quantity: count, budgetedUnitPrice: amount, categoryId }));
+      onAdded(); onClose();
+    } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
   };
   return <Sheet visible={visible} title="Add item" onClose={onClose}>
     <Field label="Item name" value={name} onChangeText={(text) => { setName(text); setProductId(undefined); }} hint="e.g. Rice"/>
@@ -172,6 +189,7 @@ function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: {
 
 function EditItemSheet({ item, list, categories, onClose, onChanged }: { item: ListItem | null; list: ListWithContext; categories: Category[]; onClose: () => void; onChanged: () => void }) {
   const currencyCode = list.currency_code;
+  const { submit } = useOffline();
   const [quantity, setQuantity] = useState(''); const [price, setPrice] = useState(''); const [categoryId, setCategoryId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
   useEffect(() => { if (item) { setQuantity(String(Number(item.quantity))); setPrice(amountInputValue(item.budgeted_unit_price, currencyCode)); setCategoryId(item.category_id); setError(undefined); } }, [item, currencyCode]);
@@ -179,7 +197,9 @@ function EditItemSheet({ item, list, categories, onClose, onChanged }: { item: L
   const save = () => {
     const amount = parseAmount(price, currencyCode); const count = parseQuantity(quantity);
     if (!item || count === null || amount === null) return setError(`Enter a quantity and a valid unit budget in ${currencyCode}.`);
-    run(() => updateItem(item.id, { quantity: count, budgetedUnitPrice: amount, categoryId }));
+    const changes = { quantity: count, budgetedUnitPrice: amount, categoryId };
+    const categoryName = categories.find((category) => category.id === categoryId)?.name ?? null;
+    run(async () => { await submit({ kind: 'updateItem', listId: list.id, label: `Edit ${item.product?.name ?? 'item'}`, itemId: item.id, changes, categoryName }, () => updateItem(item.id, changes)); });
   };
   // A collaborator's custom category stays selectable on items that already use it.
   const choices: CategoryOption[] = item?.category && !categories.some((category) => category.id === item.category?.id) ? [...categories, item.category] : categories;
@@ -192,7 +212,7 @@ function EditItemSheet({ item, list, categories, onClose, onChanged }: { item: L
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Save" onPress={save} loading={busy}/>
     {item?.product && <Button label="Price history" variant="soft" icon="trending-up-outline" onPress={() => { const productId = item.product?.id; onClose(); if (productId) router.push(`/product/${productId}`); }}/>}
-    <Button label="Remove from list" variant="danger" icon="trash-outline" disabled={busy} onPress={() => item && run(() => removeItem(item.id))}/>
+    <Button label="Remove from list" variant="danger" icon="trash-outline" disabled={busy} onPress={() => item && run(async () => { await submit({ kind: 'removeItem', listId: list.id, label: `Remove ${item.product?.name ?? 'item'}`, itemId: item.id }, () => removeItem(item.id)); })}/>
   </Sheet>;
 }
 
@@ -237,9 +257,11 @@ function ListSettingsSheet({ visible, list, categories, isOwner, hasItems, onClo
   </Sheet>;
 }
 
-function PurchaseSheet({ item, currencyCode, onClose, onPurchased }: { item: ListItem | null; currencyCode: string; onClose: () => void; onPurchased: () => void }) {
+function PurchaseSheet({ item, listId, currencyCode, onClose, onPurchased }: { item: ListItem | null; listId: string; currencyCode: string; onClose: () => void; onPurchased: () => void }) {
+  const { submit, newId } = useOffline();
   const [useBudget, setUseBudget] = useState(true); const [actual, setActual] = useState('');
-  const [busy, setBusy] = useState(false); const [error, setError] = useState<string>(); const [result, setResult] = useState<Purchase | null>(null);
+  const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
+  const [result, setResult] = useState<{ paid: number; budget: number; offline: boolean } | null>(null);
   useEffect(() => { if (item) { setUseBudget(true); setActual(''); setError(undefined); setResult(null); } }, [item]);
   const budget = item?.budgeted_total ?? 0;
   const confirm = async () => {
@@ -247,14 +269,21 @@ function PurchaseSheet({ item, currencyCode, onClose, onPurchased }: { item: Lis
     const amount = useBudget ? null : parseAmount(actual, currencyCode);
     if (!useBudget && amount === null) return setError(`Enter the amount you paid in ${currencyCode}.`);
     setBusy(true); setError(undefined);
-    try { setResult(await purchaseListItem(item.id, amount === null ? { useBudgetedAmount: true } : { actualAmount: amount })); onPurchased(); }
-    catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
+    // The client reference makes a retry after a dropped connection return this purchase instead of recording another.
+    const clientRef = newId(); const purchasedAt = new Date().toISOString();
+    try {
+      const outcome = await submit({ kind: 'purchase', listId, label: `Purchase ${item.product?.name ?? 'item'}`, itemId: item.id, clientRef, actualAmount: amount, purchasedAt },
+        () => purchaseListItem(item.id, amount === null ? { useBudgetedAmount: true, clientRef, purchasedAt } : { actualAmount: amount, clientRef, purchasedAt }));
+      setResult(outcome.queued ? { paid: amount ?? budget, budget, offline: true } : { paid: outcome.value.purchased_amount, budget: outcome.value.budgeted_amount, offline: false });
+      onPurchased();
+    } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
   };
   if (result) {
-    const difference = result.budgeted_amount - result.purchased_amount;
+    const difference = result.budget - result.paid;
     return <Sheet visible={!!item} title={`✓ ${item?.product?.name ?? 'Item'} purchased`} onClose={onClose}>
-      <Card><Text style={{ color: palette.muted }}>Paid</Text><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 24, marginTop: 4 }}>{formatCurrency(result.purchased_amount, result.currency_code)}</Text>
-        <Text style={{ color: difference >= 0 ? palette.green : palette.red, fontWeight: '700', marginTop: 8 }}>{difference >= 0 ? `Saved ${formatCurrency(difference, result.currency_code)}` : `Over budget by ${formatCurrency(-difference, result.currency_code)}`}</Text></Card>
+      <Card><Text style={{ color: palette.muted }}>Paid</Text><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 24, marginTop: 4 }}>{formatCurrency(result.paid, currencyCode)}</Text>
+        <Text style={{ color: difference >= 0 ? palette.green : palette.red, fontWeight: '700', marginTop: 8 }}>{difference >= 0 ? `Saved ${formatCurrency(difference, currencyCode)}` : `Over budget by ${formatCurrency(-difference, currencyCode)}`}</Text>
+        {result.offline && <Text style={{ color: palette.muted, marginTop: 8 }}>Saved on this phone. It syncs automatically when you are back online, with the time you bought it.</Text>}</Card>
       <Button label="Done" onPress={onClose}/>
     </Sheet>;
   }

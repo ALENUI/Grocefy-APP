@@ -15,7 +15,7 @@ import { Button, Card, EmptyState, ErrorNotice, Heading, IconButton, Loading, pa
 export default function Lists() {
   const { profile, session } = useSession();
   const userId = useUserId();
-  const lists = useAsync(() => fetchLists(), []);
+  const lists = useAsync(() => fetchLists(), [], { cacheKey: 'lists' });
   const inbox = useAsync(() => fetchInbox(userId, session?.user.email), [userId, session?.user.email]);
   useLive(watchLists, lists.reload, []);
   useLive((onChange) => watchInbox(userId, onChange), inbox.reload, [userId]);
@@ -25,6 +25,7 @@ export default function Lists() {
   return <Screen refreshing={lists.loading && !!lists.data} onRefresh={() => { lists.reload(); inbox.reload(); }}>
     <Heading title="My lists" subtitle={profile ? `Hi ${profile.display_name}` : 'Plan together, spend with confidence'}
       action={<View style={{ flexDirection: 'row', gap: 8 }}><IconButton icon="pricetags-outline" label="Price book" onPress={() => router.push('/prices')}/><IconButton icon="notifications-outline" label="Inbox" badge={inbox.data?.unreadCount} onPress={() => router.push('/inbox')}/><IconButton icon="add" label="Create list" onPress={() => router.push('/create-list')}/></View>}/>
+    {lists.stale && <Text style={{ color: palette.muted }}>Offline · showing your lists as saved {lists.savedAt ? new Date(lists.savedAt).toLocaleString() : 'earlier'}.</Text>}
     {budgets.length > 0 && <Card style={{ backgroundColor: palette.green, borderColor: palette.green }}><Text style={{ color: '#D5F1DF', fontWeight: '700', fontSize: 13 }}>ACTIVE BUDGET</Text>
       {budgets.map(([code, amount]) => <Text key={code} style={{ color: 'white', fontWeight: '800', fontSize: budgets.length > 1 ? 22 : 29, marginTop: 5 }}>{formatCurrency(amount, code)}</Text>)}
       <Text style={{ color: '#D5F1DF', marginTop: 4 }}>{budgets.length > 1 ? 'Shown separately for each currency' : 'Across your active lists'}</Text></Card>}

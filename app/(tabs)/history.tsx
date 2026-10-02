@@ -15,7 +15,7 @@ const dayKey = (iso: string) => { const date = new Date(iso); return `${date.get
 export default function PurchaseHistory() {
   const [older, setOlder] = useState<PurchaseWithProduct[]>([]);
   const [hasMore, setHasMore] = useState(true); const [loadingMore, setLoadingMore] = useState(false); const [moreError, setMoreError] = useState<string>();
-  const first = useAsync(async () => { const page = await fetchPurchases({ pageSize }); setOlder([]); setHasMore(page.length === pageSize); return page; }, []);
+  const first = useAsync(async () => { const page = await fetchPurchases({ pageSize }); setOlder([]); setHasMore(page.length === pageSize); return page; }, [], { cacheKey: 'purchases' });
   useLive((onChange) => watchTables([{ table: 'purchases' }], onChange), first.reload, []);
   const purchases = [...(first.data ?? []), ...older];
 

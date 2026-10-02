@@ -12,7 +12,7 @@ import { BackHeader, Button, Card, CurrencyPicker, EmptyState, ErrorNotice, Fiel
 
 export default function Groups() {
   const userId = useUserId();
-  const groups = useAsync(() => fetchGroups(userId), [userId]);
+  const groups = useAsync(() => fetchGroups(userId), [userId], { cacheKey: 'groups' });
   useLive(watchLists, groups.reload, []);
   const [creating, setCreating] = useState(false);
   return <Screen refreshing={groups.loading && !!groups.data} onRefresh={groups.reload}>
