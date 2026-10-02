@@ -768,6 +768,7 @@ export type Database = {
         Row: {
           budgeted_amount: number;
           category_id: string | null;
+          client_ref: string | null;
           created_at: string;
           currency_code: string;
           group_id: string | null;
@@ -783,6 +784,7 @@ export type Database = {
         Insert: {
           budgeted_amount: number;
           category_id?: string | null;
+          client_ref?: string | null;
           created_at?: string;
           currency_code: string;
           group_id?: string | null;
@@ -798,6 +800,7 @@ export type Database = {
         Update: {
           budgeted_amount?: number;
           category_id?: string | null;
+          client_ref?: string | null;
           created_at?: string;
           currency_code?: string;
           group_id?: string | null;
@@ -1272,10 +1275,11 @@ export type Database = {
         }[];
       };
       purchase_list_item: {
-        Args: { actual_amount?: number; target_item_id: string; use_budgeted_amount?: boolean };
+        Args: { actual_amount?: number; client_ref?: string; purchased_at?: string; target_item_id: string; use_budgeted_amount?: boolean };
         Returns: {
           budgeted_amount: number;
           category_id: string | null;
+          client_ref: string | null;
           created_at: string;
           currency_code: string;
           group_id: string | null;

@@ -16,8 +16,11 @@ export type PriceSuggestion = {
 };
 
 export type CreateListInput = { ownerId: string; name: string; currencyCode: string; groupId?: string | null; categoryId?: string | null; description?: string };
-/** productId: a product chosen from search suggestions; otherwise the product is found or created by name. */
-export type AddItemInput = { listId: string; productName: string; productId?: string; quantity?: number; unit?: string; budgetedUnitPrice: number; categoryId?: string | null; notes?: string };
+/**
+ * productId: a product chosen from search suggestions; otherwise the product is found or created by name.
+ * id: a client-generated id, so an offline add that is retried after a dropped connection is not duplicated.
+ */
+export type AddItemInput = { id?: string; listId: string; productName: string; productId?: string; quantity?: number; unit?: string; budgetedUnitPrice: number; categoryId?: string | null; notes?: string };
 export type ItemChanges = { quantity?: number; budgetedUnitPrice?: number; categoryId?: string | null };
 export type ListChanges = { name?: string; categoryId?: string | null; currencyCode?: string };
 
@@ -100,10 +103,10 @@ export async function searchProducts(query: string, limit = 8): Promise<Tables<'
 }
 
 /** `userId` is the signed-in user; the database overrides created_by with the authenticated user regardless. */
-export async function addItem(userId: string, { listId, productName, productId, quantity = 1, unit, budgetedUnitPrice, categoryId, notes }: AddItemInput): Promise<ListItem> {
+export async function addItem(userId: string, { id, listId, productName, productId, quantity = 1, unit, budgetedUnitPrice, categoryId, notes }: AddItemInput): Promise<ListItem> {
   const product = productId ? { id: productId } : await findOrCreateProduct(productName, userId);
   return unwrap(await getSupabaseClient().from('list_items')
-    .insert({ list_id: listId, product_id: product.id, quantity, unit, budgeted_unit_price: budgetedUnitPrice, category_id: categoryId ?? null, notes, created_by: userId })
+    .insert({ ...(id ? { id } : {}), list_id: listId, product_id: product.id, quantity, unit, budgeted_unit_price: budgetedUnitPrice, category_id: categoryId ?? null, notes, created_by: userId })
     .select(itemSelect).single());
 }
 

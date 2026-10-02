@@ -294,6 +294,23 @@ const as = async (name) => { await auth.signOut().catch(() => undefined); await 
     assert.ok((await purchases.fetchPurchases()).every((purchase) => purchase.currency_code === 'XAF'));
   });
 
+  await check('offline sync: client ids and purchase refs make retries safe, and offline times are kept', async () => {
+    await as('owner');
+    const list = await lists.createList({ ownerId: ids.owner, name: 'Offline trip', currencyCode: 'XAF' });
+    const itemId = require('node:crypto').randomUUID();
+    const added = await lists.addItem(ids.owner, { id: itemId, listId: list.id, productName: 'Eggs', budgetedUnitPrice: 2500 });
+    assert.equal(added.id, itemId);
+    await rejectsWith(lists.addItem(ids.owner, { id: itemId, listId: list.id, productName: 'Eggs', budgetedUnitPrice: 2500 }), 'ALREADY_EXISTS');
+    const clientRef = require('node:crypto').randomUUID();
+    const boughtAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const first = await purchases.purchaseListItem(itemId, { actualAmount: 2400, clientRef, purchasedAt: boughtAt });
+    assert.equal(new Date(first.purchased_at).toISOString(), boughtAt, 'the time of an offline purchase is kept');
+    const retry = await purchases.purchaseListItem(itemId, { actualAmount: 2400, clientRef, purchasedAt: boughtAt });
+    assert.equal(retry.id, first.id, 'a retried purchase returns the original');
+    assert.equal((await purchases.fetchPurchases({ listId: list.id })).length, 1);
+    await lists.archiveList(list.id);
+  });
+
   // Email delivery through the send-emails Edge Function (requires supabase/functions/.env; see .env.example).
   const functionEnv = (() => { try { return Object.fromEntries(require('node:fs').readFileSync('supabase/functions/.env', 'utf8').split(/\r?\n/).map((line) => line.match(/^([A-Z_]+)=(.*)$/)).filter(Boolean).map((match) => [match[1], match[2]])); } catch { return null; } })();
   if (!functionEnv?.EMAIL_WORKER_SECRET) {

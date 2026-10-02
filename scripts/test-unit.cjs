@@ -60,3 +60,62 @@ test('relative times', () => {
   assert.equal(timeAgo('2026-10-02T11:55:00Z', now), '5 min ago');
   assert.equal(timeAgo('2026-10-02T09:00:00Z', now), '3 h ago');
 });
+
+const { applyQueue, processQueue } = require('../src/offline/queue.ts');
+const { toServiceError, isNetworkError } = require('../src/services/errors.ts');
+
+const serverItem = (id, name, status = 'pending') => ({
+  id, list_id: 'list', product_id: `p-${id}`, category_id: null, quantity: 1, unit: null, budgeted_unit_price: 100, budgeted_total: 100, status, notes: null,
+  created_by: 'u', created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', purchased_at: null, product: { id: `p-${id}`, name }, category: null
+});
+const op = (kind, fields) => ({ id: `op-${Math.random()}`, createdAt: '2026-10-04T10:00:00Z', listId: 'list', label: `${kind}`, kind, ...fields });
+
+test('queued changes are shown on top of the saved list', () => {
+  const ops = [
+    op('addItem', { itemId: 'new', productName: 'Bread', quantity: 2, budgetedUnitPrice: 750, categoryId: null }),
+    op('updateItem', { itemId: 'rice', changes: { quantity: 3 } }),
+    op('removeItem', { itemId: 'soap' }),
+    op('purchase', { itemId: 'new', clientRef: 'ref', actualAmount: 1400, purchasedAt: '2026-10-04T10:05:00Z' }),
+    { ...op('addItem', { itemId: 'elsewhere', productName: 'Other list', quantity: 1, budgetedUnitPrice: 1, categoryId: null }), listId: 'other' }
+  ];
+  const items = applyQueue([serverItem('rice', 'Rice'), serverItem('soap', 'Soap')], ops, 'list');
+  assert.deepEqual(items.map((item) => item.id), ['rice', 'new'], 'removed item hidden, other lists ignored');
+  const rice = items.find((item) => item.id === 'rice');
+  assert.equal(rice.budgeted_total, 300);
+  assert.equal(rice.pendingSync, true);
+  const bread = items.find((item) => item.id === 'new');
+  assert.equal(bread.product.name, 'Bread');
+  assert.equal(bread.budgeted_total, 1500);
+  assert.equal(bread.status, 'purchased', 'a purchase queued after an offline add applies to it');
+  assert.equal(bread.purchased_at, '2026-10-04T10:05:00Z');
+});
+
+test('an offline add is not shown twice once the server has it', () => {
+  const items = applyQueue([serverItem('new', 'Bread')], [op('addItem', { itemId: 'new', productName: 'Bread', quantity: 1, budgetedUnitPrice: 100, categoryId: null })], 'list');
+  assert.equal(items.length, 1);
+});
+
+test('sync keeps order: it stops at the first change that cannot reach the server', async () => {
+  const ops = [op('addItem', { itemId: 'a' }), op('purchase', { itemId: 'a' }), op('removeItem', { itemId: 'b' })];
+  const sent = [];
+  const result = await processQueue(ops, async (queued) => { sent.push(queued.kind); return queued.kind === 'purchase' ? 'retry' : 'synced'; });
+  assert.deepEqual(sent, ['addItem', 'purchase'], 'nothing after the failed change is attempted');
+  assert.deepEqual(result.remaining.map((queued) => queued.kind), ['purchase', 'removeItem']);
+  assert.equal(result.synced, 1);
+});
+
+test('a refused change is reported and changes that depend on it are skipped', async () => {
+  const ops = [op('addItem', { itemId: 'a', label: 'Add Bread' }), op('purchase', { itemId: 'a' }), op('removeItem', { itemId: 'b' })];
+  const result = await processQueue(ops, async (queued) => (queued.kind === 'addItem' ? { drop: 'Your role does not allow this action.' } : 'synced'), () => 'now');
+  assert.deepEqual(result.remaining, []);
+  assert.equal(result.synced, 1, 'unrelated changes still sync');
+  assert.deepEqual(result.problems.map((problem) => problem.message), ['Your role does not allow this action.', 'Skipped because the item could not be added.']);
+});
+
+test('connection failures are told apart from server refusals', () => {
+  assert.equal(toServiceError({ message: 'TypeError: Network request failed' }).code, 'NETWORK');
+  assert.equal(toServiceError({ message: 'FetchError: request to http://x failed, reason: fetch failed' }).code, 'NETWORK');
+  assert.equal(toServiceError({ message: 'ALREADY_PURCHASED' }).code, 'ALREADY_PURCHASED');
+  assert.equal(isNetworkError(new TypeError('Failed to fetch')), true);
+  assert.equal(isNetworkError(toServiceError({ message: 'FORBIDDEN' })), false);
+});

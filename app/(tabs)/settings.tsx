@@ -5,6 +5,7 @@ import { currencyLabel } from '@/src/currency';
 import { signOut } from '@/src/services/auth';
 import { friendlyError } from '@/src/services/errors';
 import { setEmailNotifications, setTimezone } from '@/src/services/settings';
+import { useOffline } from '@/src/offline/OfflineProvider';
 import { useSession, useUserId } from '@/src/session';
 import { Button, Card, CurrencyPicker, Heading, palette, Screen, styles } from '@/src/ui';
 
@@ -12,6 +13,12 @@ export default function Settings() {
   const userId = useUserId();
   const { profile, settings, session, defaultCurrency, changeDefaultCurrency, refreshAccount } = useSession();
   const [busy, setBusy] = useState(false);
+  const { ops } = useOffline();
+  const signOutNow = () => signOut().catch((caught) => Alert.alert('Could not sign out', friendlyError(caught)));
+  // Unsynced changes stay on this phone and sync at the next sign-in, but warn before leaving them behind.
+  const confirmSignOut = () => ops.length === 0 ? signOutNow() : Alert.alert('Changes not synced yet',
+    `${ops.length} ${ops.length === 1 ? 'change has' : 'changes have'} not reached Grocefy. They will sync the next time you sign in on this phone.`,
+    [{ text: 'Stay signed in', style: 'cancel' }, { text: 'Sign out', style: 'destructive', onPress: signOutNow }]);
   const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const run = async (action: () => Promise<unknown>) => { setBusy(true); try { await action(); } catch (caught) { Alert.alert('Could not save', friendlyError(caught)); } finally { setBusy(false); } };
 
@@ -31,6 +38,6 @@ export default function Settings() {
         onValueChange={(enabled) => run(async () => { await setEmailNotifications(userId, enabled); await refreshAccount(); })}/></View>
     </Card>
     <Button label="Manage categories" variant="soft" icon="pricetags-outline" onPress={() => router.push('/categories')}/>
-    <Button label="Sign out" variant="danger" icon="log-out-outline" onPress={() => signOut().catch((caught) => Alert.alert('Could not sign out', friendlyError(caught)))}/>
+    <Button label="Sign out" variant="danger" icon="log-out-outline" onPress={confirmSignOut}/>
   </Screen>;
 }
