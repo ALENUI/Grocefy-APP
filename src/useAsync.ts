@@ -9,7 +9,7 @@ export function useAsync<T>(load: () => Promise<T>, deps: DependencyList): Async
   const [error, setError] = useState<unknown>();
   const [loading, setLoading] = useState(true);
   const latest = useRef(0);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // The caller's deps decide when `load` is stale (like useEffect), so they are forwarded as-is.
   const reload = useCallback(async () => {
     const request = ++latest.current;
     setLoading(true);
@@ -21,6 +21,7 @@ export function useAsync<T>(load: () => Promise<T>, deps: DependencyList): Async
     } finally {
       if (request === latest.current) setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
   return { data, error, loading, reload };

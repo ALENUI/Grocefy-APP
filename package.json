@@ -7,7 +7,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint",
+    "lint": "eslint --resolve-plugins-relative-to node_modules/eslint-config-expo --max-warnings 0 .",
     "typecheck": "tsc --noEmit",
     "test:db": "node scripts/test-db.mjs",
     "db:types": "supabase gen types typescript --linked --schema public > src/services/database.types.ts",
@@ -37,6 +37,9 @@
   },
   "devDependencies": {
     "@types/react": "~18.3.12",
+    "eslint": "^8.57.1",
+    "eslint-config-expo": "~8.0.1",
+    "sucrase": "^3.35.1",
     "typescript": "~5.3.3"
   },
   "private": true

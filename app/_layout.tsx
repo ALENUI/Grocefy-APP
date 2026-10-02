@@ -1,10 +1,10 @@
-import { router, Stack, useSegments } from 'expo-router';
+import { ErrorBoundaryProps, router, Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SessionProvider, useSession } from '@/src/session';
-import { Loading, palette, styles } from '@/src/ui';
+import { Button, Loading, palette, styles } from '@/src/ui';
 
 // Screens reachable while signed out. reset-password stays reachable after its email link signs the user in.
 const publicScreens = ['sign-in', 'sign-up', 'forgot-password', 'auth-callback', 'reset-password'];
@@ -27,6 +27,17 @@ function AuthGate() {
     <Stack.Screen name="(auth)"/><Stack.Screen name="(tabs)"/>
     <Stack.Screen name="create-list" options={{ presentation: 'modal' }}/>
   </Stack>;
+}
+
+/** Shown instead of a blank screen if a screen throws while rendering; the session is kept. */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return <View style={[styles.screen, { justifyContent: 'center', padding: 24, gap: 14 }]}>
+    <Text style={styles.title}>Something went wrong</Text>
+    <Text style={[styles.subtitle, { lineHeight: 21 }]}>This screen hit an unexpected problem. Your lists and purchases are safe.</Text>
+    {__DEV__ && <Text style={{ color: palette.red, fontSize: 12 }}>{error.message}</Text>}
+    <Button label="Try again" icon="refresh" onPress={retry}/>
+    <Button label="Go to my lists" variant="soft" onPress={() => router.replace('/')}/>
+  </View>;
 }
 
 export default function Layout() {
