@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CurrencyCode, currencyLabel, getCurrencies } from './currency';
@@ -57,7 +57,7 @@ export function EmptyState({ title, message, action }: { title: string; message:
 }
 export function CurrencyPicker({ value, onChange, disabled }: { value: CurrencyCode; onChange: (value: CurrencyCode) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false); const [query, setQuery] = useState('');
-  const entries = useMemo(() => getCurrencies().filter((currency) => `${currency.code} ${currency.name}`.toLowerCase().includes(query.toLowerCase())), [query, open]);
+  const entries = getCurrencies().filter((currency) => `${currency.code} ${currency.name}`.toLowerCase().includes(query.toLowerCase()));
   return <><Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel={`Currency: ${currencyLabel(value)}`} onPress={() => setOpen(true)} style={[styles.picker, disabled && { opacity: 0.6 }]}><View><Text style={styles.pickerValue}>{currencyLabel(value)}</Text><Text style={styles.pickerHint}>{disabled ? 'Locked' : 'Tap to choose currency'}</Text></View>{!disabled && <Ionicons name="chevron-down" size={20} color={palette.green} />}</Pressable><Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}><View style={styles.modalShade}><View style={styles.sheet}><View style={styles.sheetHandle}/><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>Choose currency</Text><Pressable accessibilityLabel="Close" onPress={() => setOpen(false)}><Ionicons name="close" size={24} color={palette.ink}/></Pressable></View><TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Search currencies..." placeholderTextColor="#98A39B" style={styles.search}/><ScrollView keyboardShouldPersistTaps="handled">{entries.map((currency) => <Pressable key={currency.code} onPress={() => { onChange(currency.code); setOpen(false); setQuery(''); }} style={styles.currencyRow}><View><Text style={styles.currencyCode}>{currency.code}</Text><Text style={styles.currencyName}>{currency.name}</Text></View>{currency.code === value && <Ionicons name="checkmark-circle" size={23} color={palette.green}/>}</Pressable>)}</ScrollView></View></View></Modal></>;
 }
 export const styles = StyleSheet.create({
