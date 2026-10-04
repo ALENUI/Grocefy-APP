@@ -44,7 +44,7 @@ Store or shop comparison is not part of Grocefy.
 
 ## Technology
 
-Grocefy is built with React, React Native, Expo, TypeScript, Expo Router, and a Supabase backend (PostgreSQL, Supabase Auth, Row Level Security). AsyncStorage persists the signed-in session on the device.
+Grocefy is built with React 19, React Native 0.86, Expo SDK 57, TypeScript, Expo Router, and a Supabase backend (PostgreSQL, Supabase Auth, Row Level Security). AsyncStorage persists the signed-in session on the device.
 
 ## Backend
 
@@ -142,7 +142,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request to `Devel
 | Bundle | `npx expo install --check` and an Android and iOS export |
 | Service end-to-end | `supabase start`, then `npm run test:services`, including realtime and the `send-emails` function |
 
-Run the same checks locally before opening a pull request. `npm run lint` uses Expo's ESLint config and fails on any warning.
+Run the same checks locally before opening a pull request. `npm run lint` uses Expo's ESLint flat config (`eslint.config.js`) and fails on any warning.
 
 ### Unit tests
 
@@ -160,7 +160,7 @@ Run the same checks locally before opening a pull request. `npm run lint` uses E
 
 ### Prerequisites
 
-- Node.js LTS (20.11 or newer)
+- Node.js 20.19.4 or newer (22 LTS recommended)
 - npm
 - Expo Go, Android Studio, or an iOS development environment
 - Docker (for `npm run test:db` and a local Supabase stack) and the Supabase CLI (for migrations)
