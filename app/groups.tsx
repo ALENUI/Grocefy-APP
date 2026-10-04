@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { formatCurrency } from '@/src/currency';
@@ -9,8 +9,9 @@ import { watchLists } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
 import { BackHeader, Button, Card, CurrencyPicker, EmptyState, ErrorNotice, Field, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
+import { features } from '@/src/features';
 
-export default function Groups() {
+function Groups() {
   const userId = useUserId();
   const groups = useAsync(() => fetchGroups(userId), [userId], { cacheKey: 'groups' });
   useLive(watchLists, groups.reload, []);
@@ -62,3 +63,6 @@ function CreateGroupSheet({ visible, onClose, onCreated }: { visible: boolean; o
     <Button label="Create group" onPress={create} loading={busy}/>
   </Sheet>;
 }
+
+/** Hidden while the "multipleHomes" feature is off: old links and notifications land on Home instead. */
+export default function GroupsRoute() { return features.multipleHomes ? <Groups/> : <Redirect href="/"/>; }

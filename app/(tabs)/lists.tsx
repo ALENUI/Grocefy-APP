@@ -2,37 +2,35 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { formatCurrency } from '@/src/currency';
+import { features } from '@/src/features';
 import { ListCard } from '@/src/ListCard';
 import { fetchLists } from '@/src/services/lists';
-import { watchInbox, watchLists } from '@/src/services/realtime';
-import { fetchInbox } from '@/src/services/sharing';
-import { useSession, useUserId } from '@/src/session';
+import { watchLists } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
+import { useHome } from '@/src/useHome';
 import { useLive } from '@/src/useLive';
 import { Button, Card, EmptyState, ErrorNotice, Heading, IconButton, Loading, palette, Screen } from '@/src/ui';
 
+/** The home's shopping lists: what needs buying, ready to tick off at the market. */
 export default function Lists() {
-  const { profile, session } = useSession();
-  const userId = useUserId();
-  const lists = useAsync(() => fetchLists(), [], { cacheKey: 'lists' });
-  const inbox = useAsync(() => fetchInbox(userId, session?.user.email), [userId, session?.user.email]);
+  const { home } = useHome();
+  const homeId = features.multipleHomes ? undefined : home?.id;
+  const lists = useAsync(async () => (features.multipleHomes || homeId ? fetchLists({ groupId: homeId }) : []), [homeId], { cacheKey: `lists:${homeId ?? 'all'}` });
   useLive(watchLists, lists.reload, []);
-  useLive((onChange) => watchInbox(userId, onChange), inbox.reload, [userId]);
-  // Budgets are summed per currency only; different currencies are never added together.
-  const budgets = Object.entries((lists.data ?? []).reduce<Record<string, number>>((all, list) => ({ ...all, [list.currency_code]: (all[list.currency_code] ?? 0) + (list.totals?.budgeted_total ?? 0) }), {}));
+  const newList = () => router.push(homeId ? { pathname: '/create-list', params: { groupId: homeId } } : '/create-list');
 
-  return <Screen refreshing={lists.loading && !!lists.data} onRefresh={() => { lists.reload(); inbox.reload(); }}>
-    <Heading title="My lists" subtitle={profile ? `Hi ${profile.display_name}` : 'Plan together, spend with confidence'}
-      action={<View style={{ flexDirection: 'row', gap: 8 }}><IconButton icon="pricetags-outline" label="Price book" onPress={() => router.push('/prices')}/><IconButton icon="notifications-outline" label="Inbox" badge={inbox.data?.unreadCount} onPress={() => router.push('/inbox')}/><IconButton icon="add" label="Create list" onPress={() => router.push('/create-list')}/></View>}/>
+  return <Screen refreshing={lists.loading && !!lists.data} onRefresh={lists.reload}>
+    <Heading title="To buy" subtitle={home ? home.name : 'Your shopping lists'}
+      action={<View style={{ flexDirection: 'row', gap: 8 }}>
+        {features.priceInsights && <IconButton icon="pricetags-outline" label="Price book" onPress={() => router.push('/prices')}/>}
+        {(features.multipleHomes || homeId) && <IconButton icon="add" label="New list" onPress={newList}/>}
+      </View>}/>
     {lists.stale && <Text style={{ color: palette.muted }}>Offline · showing your lists as saved {lists.savedAt ? new Date(lists.savedAt).toLocaleString() : 'earlier'}.</Text>}
-    {budgets.length > 0 && <Card style={{ backgroundColor: palette.green, borderColor: palette.green }}><Text style={{ color: '#D5F1DF', fontWeight: '700', fontSize: 13 }}>ACTIVE BUDGET</Text>
-      {budgets.map(([code, amount]) => <Text key={code} style={{ color: 'white', fontWeight: '800', fontSize: budgets.length > 1 ? 22 : 29, marginTop: 5 }}>{formatCurrency(amount, code)}</Text>)}
-      <Text style={{ color: '#D5F1DF', marginTop: 4 }}>{budgets.length > 1 ? 'Shown separately for each currency' : 'Across your active lists'}</Text></Card>}
-    <Pressable onPress={() => router.push('/groups')}><Card style={{ backgroundColor: palette.pale, borderColor: palette.pale }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><View><Text style={{ color: palette.green, fontWeight: '800', fontSize: 16 }}>Shopping groups</Text><Text style={{ color: palette.muted, marginTop: 4 }}>Organize lists and people by purpose</Text></View><Ionicons name="people-outline" size={25} color={palette.green}/></View></Card></Pressable>
+    {features.multipleHomes && <Pressable onPress={() => router.push('/groups')}><Card style={{ backgroundColor: palette.pale, borderColor: palette.pale }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><View><Text style={{ color: palette.green, fontWeight: '800', fontSize: 16 }}>Shopping groups</Text><Text style={{ color: palette.muted, marginTop: 4 }}>Organize lists and people by purpose</Text></View><Ionicons name="people-outline" size={25} color={palette.green}/></View></Card></Pressable>}
+    {!features.multipleHomes && home === null && <EmptyState title="Set up your home first" message="Create your home on the Home tab, or accept an invitation from someone you live with." action={<Button label="Go to Home" variant="soft" onPress={() => router.navigate('/')}/>}/>}
     {lists.error ? <ErrorNotice error={lists.error} onRetry={lists.reload}/> : !lists.data ? <Loading/> : lists.data.length === 0
-      ? <EmptyState title="No lists yet" message="Create your first shopping list to start planning budgets and tracking what you pay."/>
-      : <View style={{ gap: 11 }}>{lists.data.map((list) => <ListCard key={list.id} list={list}/>)}</View>}
-    <Button label="Create a shopping list" icon="add-circle-outline" onPress={() => router.push('/create-list')}/>
+      ? (home !== null && <EmptyState title="No lists yet" message="Mark items as running low on the Home tab, or create a list for a shopping trip."/>)
+      : <View style={{ gap: 11 }}>{lists.data.map((list) => <ListCard key={list.id} list={list} showGroup={features.multipleHomes}/>)}</View>}
+    {(features.multipleHomes || homeId) && <Button label="New list" icon="add-circle-outline" variant="soft" onPress={newList}/>}
   </Screen>;
 }

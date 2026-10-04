@@ -8,13 +8,21 @@ import { OfflineBanner } from '@/src/offline/OfflineBanner';
 import { OfflineProvider } from '@/src/offline/OfflineProvider';
 import { SessionProvider, useSession } from '@/src/session';
 import { Button, Loading, palette, styles } from '@/src/ui';
+import { features } from '@/src/features';
+import { setTimezone } from '@/src/services/settings';
 
 // Screens reachable while signed out. reset-password stays reachable after its email link signs the user in.
 const publicScreens = ['sign-in', 'sign-up', 'forgot-password', 'auth-callback', 'reset-password'];
 
 function AuthGate() {
   const { status, settings } = useSession();
-  const pushOn = settings?.push_notifications;
+  const pushOn = features.pushNotifications && settings?.push_notifications;
+  const { userId, refreshAccount } = useSession();
+  const timezoneMissing = status === 'signedIn' && !!settings && !settings.timezone;
+  useEffect(() => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timezoneMissing && userId && zone) setTimezone(userId, zone).then(refreshAccount).catch(() => undefined);
+  }, [timezoneMissing, userId, refreshAccount]);
   useNotificationRouting(status === 'signedIn');
   // Refresh this phone's push registration after sign-in, without prompting (the prompt is shown from Settings).
   useEffect(() => { if (status === 'signedIn' && pushOn) registerDevice({ ask: false }).catch(() => undefined); }, [status, pushOn]);

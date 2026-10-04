@@ -6,6 +6,7 @@ import { amountInputValue, formatCurrency, parseAmount } from '@/src/currency';
 import { ActivityFeed } from '@/src/ActivityFeed';
 import { fetchActivity } from '@/src/services/activity';
 import { Category, fetchCategories } from '@/src/services/categories';
+import { features } from '@/src/features';
 import { friendlyError } from '@/src/services/errors';
 import {
   addItem, archiveList, duplicateList, fetchList, fetchListItems, fetchListRole, findProduct, getPriceSuggestion, ListItem, ListWithContext, PriceSuggestion, removeItem, searchProducts, updateItem, updateList
@@ -55,7 +56,7 @@ export default function ListDetail() {
   const saved = (totals?.purchased_budgeted_total ?? 0) - (totals?.purchased_total ?? 0);
   // Group what is left to buy by category, like aisles in a store. Items without a category use the list's.
   const sections = pending.reduce<{ name: string; items: DisplayItem[] }[]>((all, item) => {
-    const name = item.category?.name ?? list.category?.name ?? 'Uncategorized';
+    const name = features.customCategories ? item.category?.name ?? list.category?.name ?? 'Uncategorized' : 'To buy';
     const section = all.find((entry) => entry.name === name);
     if (section) section.items.push(item); else all.push({ name, items: [item] });
     return all;
@@ -70,7 +71,7 @@ export default function ListDetail() {
     <BackHeader title={list.name} subtitle={[list.group?.name, list.category?.name, code, role && `You: ${role}`].filter(Boolean).join(' · ')}
       action={<View style={{ flexDirection: 'row', gap: 8 }}>
         {canEdit && <IconButton icon="options-outline" label="List settings" onPress={() => setConfiguring(true)}/>}
-        {role === 'owner' && <IconButton icon="person-add-outline" label="Share list" onPress={() => router.push({ pathname: '/members', params: { type: 'list', id: list.id, name: list.name } })}/>}
+        {features.listSharing && role === 'owner' && <IconButton icon="person-add-outline" label="Share list" onPress={() => router.push({ pathname: '/members', params: { type: 'list', id: list.id, name: list.name } })}/>}
       </View>}/>
     {!!state.error && <ErrorNotice error={state.error} onRetry={state.reload}/>}
     {state.stale && <Text style={{ color: palette.muted }}>Offline · showing this list as saved {state.savedAt ? new Date(state.savedAt).toLocaleString() : 'earlier'}. Changes you make will sync later.</Text>}
@@ -94,13 +95,13 @@ export default function ListDetail() {
     </View>)}
     {canEdit && list.archived_at === null && <Button label="Add item" icon="add" onPress={() => setAdding(true)}/>}
     {purchased.length > 0 && <View style={{ gap: 10 }}><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16, marginTop: 6 }}>Purchased</Text>
-      {purchased.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityHint="Opens price history" onPress={() => item.product && router.push(`/product/${item.product.id}`)}><Card style={{ opacity: 0.85 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><View style={{ flex: 1 }}>
+      {purchased.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityHint="Opens price history" disabled={!features.priceInsights} onPress={() => item.product && router.push(`/product/${item.product.id}`)}><Card style={{ opacity: 0.85 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><View style={{ flex: 1 }}>
         <Text style={{ color: palette.ink, fontSize: 16, fontWeight: '800', textDecorationLine: 'line-through' }}>{item.product?.name ?? 'Item'}</Text>
         <Text style={{ color: palette.muted, marginTop: 5 }}>Budget {formatCurrency(item.budgeted_total ?? 0, code)} · {item.purchased_at ? new Date(item.purchased_at).toLocaleDateString() : ''}{item.pendingSync ? ' · waiting to sync' : ''}</Text></View>
         <Ionicons name="checkmark-circle" color={palette.green} size={24}/></View></Card></Pressable>)}</View>}
-    {items.length > 0 && <Button label="Duplicate list" variant="soft" icon="copy-outline" onPress={() => setDuplicating(true)}/>}
+    {features.duplicateLists && items.length > 0 && <Button label="Duplicate list" variant="soft" icon="copy-outline" onPress={() => setDuplicating(true)}/>}
     {role === 'owner' && <Button label="Archive list" variant="danger" icon="archive-outline" onPress={confirmArchive}/>}
-    <ActivityFeed entries={activity}/>
+    {features.activityFeed && <ActivityFeed entries={activity}/>}
 
     <AddItemSheet visible={adding} onClose={() => setAdding(false)} list={list} categories={categories} userId={userId} onAdded={state.reload}/>
     <EditItemSheet item={editing} list={list} categories={categories} onClose={() => setEditing(null)} onChanged={state.reload}/>
@@ -181,7 +182,7 @@ function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: {
       <View style={{ width: 96 }}><Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/></View>
       <View style={{ flex: 1 }}><Field label="Unit budget" prefix={currencyCode} value={price} onChangeText={setPrice} keyboardType="decimal-pad" hint="0"/></View>
     </View>
-    <CategoryChips categories={categories} value={categoryId} onChange={setCategoryId} defaultLabel={list.category ? `Same as list (${list.category.name})` : 'None'}/>
+    {features.customCategories && <CategoryChips categories={categories} value={categoryId} onChange={setCategoryId} defaultLabel={list.category ? `Same as list (${list.category.name})` : 'None'}/>}
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Add to list" onPress={save} loading={busy}/>
   </Sheet>;
@@ -208,10 +209,10 @@ function EditItemSheet({ item, list, categories, onClose, onChanged }: { item: L
       <View style={{ width: 96 }}><Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/></View>
       <View style={{ flex: 1 }}><Field label="Unit budget" prefix={currencyCode} value={price} onChangeText={setPrice} keyboardType="decimal-pad"/></View>
     </View>
-    <CategoryChips categories={choices} value={categoryId} onChange={setCategoryId} defaultLabel={list.category ? `Same as list (${list.category.name})` : 'None'}/>
+    {features.customCategories && <CategoryChips categories={choices} value={categoryId} onChange={setCategoryId} defaultLabel={list.category ? `Same as list (${list.category.name})` : 'None'}/>}
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Save" onPress={save} loading={busy}/>
-    {item?.product && <Button label="Price history" variant="soft" icon="trending-up-outline" onPress={() => { const productId = item.product?.id; onClose(); if (productId) router.push(`/product/${productId}`); }}/>}
+    {features.priceInsights && item?.product && <Button label="Price history" variant="soft" icon="trending-up-outline" onPress={() => { const productId = item.product?.id; onClose(); if (productId) router.push(`/product/${productId}`); }}/>}
     <Button label="Remove from list" variant="danger" icon="trash-outline" disabled={busy} onPress={() => item && run(async () => { await submit({ kind: 'removeItem', listId: list.id, label: `Remove ${item.product?.name ?? 'item'}`, itemId: item.id }, () => removeItem(item.id)); })}/>
   </Sheet>;
 }
@@ -249,9 +250,9 @@ function ListSettingsSheet({ visible, list, categories, isOwner, hasItems, onClo
   const choices: CategoryOption[] = list.category && !categories.some((category) => category.id === list.category?.id) ? [...categories, list.category] : categories;
   return <Sheet visible={visible} title="List settings" onClose={onClose}>
     <Field label="List name" value={name} onChangeText={setName}/>
-    <CategoryChips categories={choices} value={categoryId} onChange={setCategoryId} defaultLabel="None"/>
-    <View style={styles.field}><Text style={styles.label}>Currency</Text><CurrencyPicker value={currency} onChange={setCurrency} disabled={!currencyEditable}/>
-      <Text style={{ color: palette.muted, fontSize: 12 }}>{currencyEditable ? 'Can change until the first item is added.' : hasItems ? 'Locked: this list already has items priced in this currency.' : 'Only the owner can change the currency.'}</Text></View>
+    {features.customCategories && <CategoryChips categories={choices} value={categoryId} onChange={setCategoryId} defaultLabel="None"/>}
+    {features.listCurrency && <View style={styles.field}><Text style={styles.label}>Currency</Text><CurrencyPicker value={currency} onChange={setCurrency} disabled={!currencyEditable}/>
+      <Text style={{ color: palette.muted, fontSize: 12 }}>{currencyEditable ? 'Can change until the first item is added.' : hasItems ? 'Locked: this list already has items priced in this currency.' : 'Only the owner can change the currency.'}</Text></View>}
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Save" onPress={save} loading={busy}/>
   </Sheet>;

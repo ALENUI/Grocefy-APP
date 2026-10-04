@@ -10,13 +10,17 @@ import { watchTables } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
 import { BackHeader, Button, Card, Chip, ErrorNotice, Field, Loading, palette, Screen, Sheet } from '@/src/ui';
+import { features } from '@/src/features';
 
-const roles: { role: MemberRole; description: string }[] = [
+const roles: { role: MemberRole; description: string }[] = features.editorRole ? [
   { role: 'viewer', description: 'Sees items, prices, and totals' },
   { role: 'editor', description: 'Adds and edits items and budgets' },
   { role: 'partner', description: 'Also purchases and receives finance reports' }
+] : [
+  { role: 'partner', description: 'Adds items, marks what is running out, and buys' },
+  { role: 'viewer', description: 'Sees everything but cannot change it' }
 ];
-const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.slice(1);
+const roleLabel = (role: string) => (features.editorRole ? role.charAt(0).toUpperCase() + role.slice(1) : role === 'partner' ? 'Member' : role === 'viewer' ? 'View only' : role === 'editor' ? 'Editor' : role);
 
 /** Members and invitations for a group or a list: /members?type=group|list&id=…&name=… */
 export default function Members() {
@@ -37,7 +41,7 @@ export default function Members() {
   ]);
 
   return <Screen refreshing={state.loading && !!state.data} onRefresh={state.reload}>
-    <BackHeader title="Members" subtitle={`${name ?? ''} · ${type === 'group' ? 'Group members can access every list in the group' : 'List members'}`}/>
+    <BackHeader title="Members" subtitle={`${name ?? ''} · ${type === 'group' ? (features.multipleHomes ? 'Group members can access every list in the group' : 'People who live here') : 'List members'}`}/>
     {state.error ? <ErrorNotice error={state.error} onRetry={state.reload}/> : !state.data ? <Loading/> : <>
       {state.data.members.length === 0 && <Text style={{ color: palette.muted }}>No members yet. {state.data.isOwner ? 'Invite people by username or email.' : ''}</Text>}
       {state.data.members.map((member) => <Card key={member.id}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
@@ -60,7 +64,7 @@ export default function Members() {
 }
 
 function InviteSheet({ visible, type, id, onClose, onInvited }: { visible: boolean; type: ResourceType; id: string; onClose: () => void; onInvited: () => void }) {
-  const [invitee, setInvitee] = useState(''); const [role, setRole] = useState<MemberRole>('editor');
+  const [invitee, setInvitee] = useState(''); const [role, setRole] = useState<MemberRole>(features.editorRole ? 'editor' : 'partner');
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
   const invite = async () => {
     if (!invitee.trim()) return setError('Enter a username or email address.');

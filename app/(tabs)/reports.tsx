@@ -11,10 +11,12 @@ import { SpendColumns } from '@/src/charts';
 import { useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
 import { Button, Card, Chip, EmptyState, ErrorNotice, Heading, Loading, palette, Screen } from '@/src/ui';
+import { Redirect } from 'expo-router';
+import { features } from '@/src/features';
 
 const monthLabel = (year: number, month: number) => new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
-export default function Reports() {
+function Reports() {
   const userId = useUserId();
   const today = new Date();
   const [period, setPeriod] = useState({ year: today.getFullYear(), month: today.getMonth() + 1 });
@@ -107,3 +109,6 @@ function ReportCard({ report, scopeName, userId }: { report: MonthlyReportWithIt
   </Card>;
 }
 function Metric({ label, value }: { label: string; value: string }) { return <View><Text style={{ color: palette.muted, fontSize: 13 }}>{label}</Text><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 18, marginTop: 4 }}>{value}</Text></View>; }
+
+/** Hidden while the "financeReports" feature is off: old links and notifications land on Home instead. */
+export default function ReportsRoute() { return features.financeReports ? <Reports/> : <Redirect href="/"/>; }
