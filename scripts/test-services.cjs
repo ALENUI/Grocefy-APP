@@ -311,6 +311,31 @@ const as = async (name) => { await auth.signOut().catch(() => undefined); await 
     await lists.archiveList(list.id);
   });
 
+  await check('home inventory: running low → To buy at the last price → bought → back in stock → new price next time', async () => {
+    const home = require('../src/services/home');
+    await as('owner');
+    const created = await home.createHome('E2E home');
+    const current = await home.fetchCurrentHome(ids.owner, (await settings.fetchSettings(ids.owner)).current_home_id);
+    assert.equal(current.id, created.id, 'the new home becomes the current home');
+    await home.addHomeItem(ids.owner, created.id, 'Rice', { usualQuantity: 1 });
+    await rejectsWith(home.addHomeItem(ids.owner, created.id, 'rice'), 'ALREADY_EXISTS');
+    let [rice] = await home.fetchHomeItems(created.id, created.currency_code);
+    assert.equal(rice.status, 'in_stock');
+    const lastPaid = rice.lastPrice;
+    assert.ok(lastPaid > 0, 'Rice already has a price from earlier purchases');
+
+    const entry = await home.markHomeItem(rice.id, 'low');
+    assert.equal(entry.budgeted_unit_price, lastPaid, 'the To-buy entry uses the last price paid');
+    assert.equal((await home.markHomeItem(rice.id, 'out')).id, entry.id, 'marking again does not add it twice');
+    await purchases.purchaseListItem(entry.id, { actualAmount: 26000 });
+    [rice] = await home.fetchHomeItems(created.id, created.currency_code);
+    assert.equal(rice.status, 'in_stock', 'buying puts it back in stock');
+    assert.equal(rice.lastPrice, 26000, 'the new price is remembered');
+    assert.equal((await home.markHomeItem(rice.id, 'low')).budgeted_unit_price, 26000, 'next time, the new price is suggested');
+    const [spent] = await home.fetchMonthSpending(created.id);
+    assert.equal(spent.purchased, 26000);
+  });
+
   // Email delivery through the send-emails Edge Function (requires supabase/functions/.env; see .env.example).
   const functionEnv = (() => { try { return Object.fromEntries(require('node:fs').readFileSync('supabase/functions/.env', 'utf8').split(/\r?\n/).map((line) => line.match(/^([A-Z_]+)=(.*)$/)).filter(Boolean).map((match) => [match[1], match[2]])); } catch { return null; } })();
   if (!functionEnv?.EMAIL_WORKER_SECRET) {

@@ -1,28 +1,46 @@
 # Grocefy
 
-Grocefy is a collaborative grocery and shopping management app for individuals, households, offices, and teams. Create organized shopping lists, set budgets, record what was actually paid, and understand spending in one place.
+Grocefy helps a household keep track of the groceries and everyday items it keeps at home, and what needs buying. When something is running low or finished, anyone in the home marks it, and it goes straight onto the shared To-buy list with the price paid last time. At the market, you tick items off and enter what you actually paid; that price is saved and suggested the next time the item runs out. Everyone who lives in the home sees the same inventory and list, so nobody has to say out loud what is missing.
+
+## How it works
+
+1. **Set up your home** and add the things you buy regularly (rice, oil, soap, toothpaste…), with how many you usually buy at a time.
+2. **Mark items** as *In stock*, *Running low*, or *Finished* as you use them. Low and finished items go onto the To-buy list automatically, priced at what you paid last time, and the people you live with get a notification.
+3. **At the market**, open the To-buy list, tick each item as you buy it, and enter the amount you paid (or confirm the expected price).
+4. The price is **remembered** against the item and it goes back *In stock*. Next time it runs low, the new price is suggested.
 
 ## Features
 
-- **Shopping lists:** create lists with a purpose category (Food Stuffs, Kitchen, Bathroom, Cleaning, Home Appliances, Electronics, Office Supplies, Clothing, Personal Care, Household, Other, or your own). Items can have their own category and are grouped by it while shopping. Lists can be renamed and recategorized, and their currency can change until the first item is added.
-- **Custom categories:** create, rename, and archive your own categories. Archived categories disappear from pickers but stay on history and reports.
-- **Product search:** as you type an item, Grocefy suggests products you already know, from your lists and those shared with you. Exact and prefix matches come first, then similar names. Choosing a suggestion reuses the product and its price memory.
-- **Shopping groups:** organize lists by a shared purpose, such as House Shopping or Office Shopping. Each group has its own screen with its lists and totals per currency.
-- **Accounts:** sign up with a username and default currency, sign in, and reset a forgotten password by email.
-- **Collaboration:** invite people to a list or group by username or email as Viewer, Editor, or Partner; they accept or decline from their inbox.
-- **Live collaboration:** when someone adds, edits, or purchases an item, the list updates on everyone's screen without refreshing. Members, invitations, and the inbox badge (unread notifications plus invitations) also update live.
-- **Push notifications:** when someone buys an item on a list you share, you are notified ("Alex bought Rice for 23500 XAF"), along with invitations and monthly reports. Tapping a notification opens the list or screen it concerns. Push can be turned off in Settings, and signing out stops pushes to that phone.
-- **Offline shopping:** your lists, list details, groups, and purchase history are saved on the phone and shown when there is no connection. Adding, editing, removing, and purchasing items work offline. The changes are queued and synced in order when the connection returns. A banner shows what is waiting, and any change the server refuses (for example, an item someone else already bought) is listed.
-- **Activity log:** each list and group shows recent activity, such as who added, edited, removed, or purchased an item (with amounts and currency) and who joined or changed roles.
-- **Duplicate lists:** copy last week's list for the next trip. Every item starts unpurchased, and budgets refresh to the latest price you paid in the list's currency (never converted from another currency).
-- **CSV exports:** each monthly report can be exported as a category statement or as its individual purchases, one currency per file, and shared or saved from the device. Exports open correctly in Excel, and text from other users can never run as a spreadsheet formula.
-- **Budget and purchase tracking:** set a budget per item, confirm actual purchase prices, and see savings or overruns.
-- **Price history:** every purchase records the amount, ISO 4217 currency code, and date. When an item is added again, the last price paid in the list's currency is suggested.
-- **Price book and trends:** the price book lists everything you've bought, with the last price paid and the change since the previous purchase. Each product has its full price history, with last, average, lowest, and highest price and a trend chart. Every figure is shown per currency.
-- **Spending trend:** Reports show the last six months of paid vs budgeted per currency, for your own purchases or a group's.
-- **Purchased history:** purchases grouped by day, newest first.
-- **Currency preferences:** choose a default currency for new lists and override it per list. Existing lists and purchases retain their original currency.
-- **Finance reports:** monthly budget-vs-actual statements by category, for your own purchases or a whole group, with one statement per currency. Grocefy never combines currencies without conversion.
+- **Home inventory:** everything the household keeps, grouped into *Needs buying* and *In stock*, with the last price paid for each item.
+- **To-buy lists:** a shared list created with the home, plus any other lists you want (e.g. a weekly market trip). Each item shows its expected price and the list shows the expected total.
+- **Buying and price memory:** tick an item as bought, pay the expected price or enter the actual one; the price is saved and reused. Purchases are recorded once even if the connection drops.
+- **Sharing with the people you live with:** invite them by username or email. **Members** can add items, mark what is running out, and buy; **View-only** people (for example children) can see everything without changing it. The person who created the home manages who is in it.
+- **Live updates and push notifications:** changes appear on everyone's phone without refreshing, and housemates are notified when something runs low or finishes, or is bought.
+- **Works offline:** your home and lists are saved on the phone, and changes made without signal sync when the connection returns.
+- **Spent this month and purchase history:** a monthly total on the Home screen and a dated list of past purchases.
+- **Accounts:** sign up with a username, sign in, and reset a forgotten password by email.
+
+All amounts use the home's currency (chosen when the home is created), and stored prices always keep their currency.
+
+### Hidden for now (feature flags)
+
+Grocefy was built with room to grow. These features are implemented and tested but hidden in [src/features.ts](src/features.ts) to keep the app simple; switching a flag on brings the feature back without database changes:
+
+| Flag | Feature |
+|---|---|
+| `multipleHomes` | Belonging to several homes; the Groups screens |
+| `financeReports` | Monthly budget-vs-actual statements and the Reports tab |
+| `csvExports` | CSV export of statements and purchases |
+| `priceInsights` | Price book, per-product price history and charts, six-month spending chart |
+| `activityFeed` | "Recent activity" feeds |
+| `emailNotifications` | Email notification setting (server-side email delivery is set up separately) |
+| `customCategories` | Item categories and custom category management |
+| `listCurrency` | A different currency per list |
+| `duplicateLists` | Duplicating a list |
+| `editorRole` | A separate Editor role |
+| `listSharing` | Sharing a single list with someone outside the home |
+
+Store or shop comparison is not part of Grocefy.
 
 ## Technology
 
@@ -104,7 +122,7 @@ The migrations also create the reference data (currency registry and default cat
 
 `supabase start` (and `supabase db reset`) loads `supabase/seed/seed.sql` into the local database. It contains two demo accounts, both with the password `grocefy-demo`:
 
-- **demo@grocefy.test** owns House Shopping (Food, Kitchen, Bathroom) and Office Shopping (Stationery, and Imports in USD).
+- **demo@grocefy.test** owns the House Shopping home, whose inventory has items in stock, running low, and finished, with matching To-buy lists (plus Office Shopping, used only when the `multipleHomes` flag is on).
 - **alex@grocefy.test** is a partner in House Shopping and has a pending invitation to Office Shopping.
 
 The seed includes last month's purchases (so price suggestions and a finalized monthly report exist), this month's purchases, and items still to buy. Never run it against production.
@@ -169,14 +187,15 @@ Use `npm run android` or `npm run ios` for a platform-specific start. The app re
 
 ## Project Status
 
-Grocefy is under active development. Accounts, shared lists and groups, purchasing, price memory, purchased history, and monthly finance reports run end to end on Supabase. Features are delivered incrementally through feature branches and pull requests targeting `Development`.
+Grocefy is under active development and focused on its core: a shared home inventory, To-buy lists with remembered prices, and buying at the market, for families and people who live together. Larger features are hidden behind flags until the product expands. Work is delivered through feature branches and pull requests targeting `Development`.
 
 ## Roadmap
 
-- Realtime list updates while shopping together
-- Offline shopping and push notifications
-- Recurring lists, receipt scanning, AI suggestions, price trends, and store comparison
-- Inventory management, multiple workspaces, advanced analytics, currency conversion, and PDF/CSV/Excel exports
-- Subscription and family/business plans
+Possible later expansions, if the product grows beyond a single household app:
+
+- Turning on the hidden features listed under *Hidden for now*
+- Reminders for items that usually run out on a schedule
+- Receipt scanning to fill in prices
+- Currency conversion (never automatic for stored prices)
 
 The architecture preserves currency information on lists and purchase history so conversion and server synchronization can be added without changing historical financial meaning.
