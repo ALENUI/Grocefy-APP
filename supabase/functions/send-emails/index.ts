@@ -11,23 +11,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { createProvider } from '../_shared/email/providers.ts';
 import { createSupabaseStore, ServiceClient } from '../_shared/email/supabase-store.ts';
 import { processOutbox } from '../_shared/email/worker.ts';
+import { rejectUnauthorized } from '../_shared/worker-auth.ts';
 
 const env = (name: string) => Deno.env.get(name) ?? undefined;
 
-// Constant-time comparison so the secret cannot be recovered through response timing.
-function secretMatches(provided: string | null, expected: string): boolean {
-  if (provided === null) return false;
-  const a = new TextEncoder().encode(provided);
-  const b = new TextEncoder().encode(expected);
-  let difference = a.length ^ b.length;
-  for (let index = 0; index < b.length; index++) difference |= (a[index] ?? 0) ^ b[index];
-  return difference === 0;
-}
-
 Deno.serve(async (request) => {
-  const secret = env('EMAIL_WORKER_SECRET');
-  if (!secret) return Response.json({ error: 'EMAIL_WORKER_SECRET is not configured' }, { status: 500 });
-  if (request.method !== 'POST' || !secretMatches(request.headers.get('x-worker-secret'), secret)) return Response.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+  const rejected = rejectUnauthorized(request, env('EMAIL_WORKER_SECRET'));
+  if (rejected) return rejected;
 
   try {
     const client = createClient(env('SUPABASE_URL')!, env('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } });

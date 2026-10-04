@@ -323,6 +323,8 @@ const as = async (name) => { await auth.signOut().catch(() => undefined); await 
     });
     await check('the email worker sends pending invitations and skips answered ones', async () => {
       await auth.signUp({ email: email('late'), password, username: username('late'), defaultCurrency: 'XAF' });
+      // Their phone is registered for push, so the invitation below is also pushed.
+      await require('../src/services/push').registerPushToken(`ExponentPushToken[${run}]`, 'ios');
       await as('owner');
       await sharing.inviteMember('group', group.id, 'viewer', username('late'));
       const response = await worker({ 'x-worker-secret': functionEnv.EMAIL_WORKER_SECRET });
@@ -332,6 +334,14 @@ const as = async (name) => { await auth.signOut().catch(() => undefined); await 
       assert.ok(result.sent >= 1, `expected the pending invitation to be sent: ${JSON.stringify(result)}`);
       assert.ok(result.skipped >= 2, `expected the two accepted invitations to be skipped: ${JSON.stringify(result)}`);
       assert.deepEqual(await (await worker({ 'x-worker-secret': functionEnv.EMAIL_WORKER_SECRET })).json(), { provider: functionEnv.EMAIL_PROVIDER ?? 'log', sent: 0, failed: 0, skipped: 0 });
+    });
+    await check('the push worker delivers queued pushes and rejects unauthenticated calls', async () => {
+      const push = (headers) => fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/send-push`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: '{}' });
+      assert.equal((await push({})).status, 401);
+      const result = await (await push({ 'x-worker-secret': functionEnv.EMAIL_WORKER_SECRET })).json();
+      assert.equal(result.provider, 'log', JSON.stringify(result));
+      assert.equal(result.failed, 0, JSON.stringify(result));
+      assert.ok(result.sent >= 1, `expected the invitation push to be sent: ${JSON.stringify(result)}`);
     });
   }
 

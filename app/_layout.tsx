@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { registerDevice, useNotificationRouting } from '@/src/notifications';
 import { OfflineBanner } from '@/src/offline/OfflineBanner';
 import { OfflineProvider } from '@/src/offline/OfflineProvider';
 import { SessionProvider, useSession } from '@/src/session';
@@ -12,7 +13,11 @@ import { Button, Loading, palette, styles } from '@/src/ui';
 const publicScreens = ['sign-in', 'sign-up', 'forgot-password', 'auth-callback', 'reset-password'];
 
 function AuthGate() {
-  const { status } = useSession();
+  const { status, settings } = useSession();
+  const pushOn = settings?.push_notifications;
+  useNotificationRouting(status === 'signedIn');
+  // Refresh this phone's push registration after sign-in, without prompting (the prompt is shown from Settings).
+  useEffect(() => { if (status === 'signedIn' && pushOn) registerDevice({ ask: false }).catch(() => undefined); }, [status, pushOn]);
   const segments = useSegments() as string[];
   const screen = segments[0] === '(auth)' ? segments[1] : undefined;
   const onPublicScreen = !!screen && publicScreens.includes(screen);

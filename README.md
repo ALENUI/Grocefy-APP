@@ -11,6 +11,7 @@ Grocefy is a collaborative grocery and shopping management app for individuals, 
 - **Accounts:** sign up with a username and default currency, sign in, and reset a forgotten password by email.
 - **Collaboration:** invite people to a list or group by username or email as Viewer, Editor, or Partner; they accept or decline from their inbox.
 - **Live collaboration:** when someone adds, edits, or purchases an item, the list updates on everyone's screen without refreshing. Members, invitations, and the inbox badge (unread notifications plus invitations) also update live.
+- **Push notifications:** when someone buys an item on a list you share, you are notified ("Alex bought Rice for 23500 XAF"), along with invitations and monthly reports. Tapping a notification opens the list or screen it concerns. Push can be turned off in Settings, and signing out stops pushes to that phone.
 - **Offline shopping:** your lists, list details, groups, and purchase history are saved on the phone and shown when there is no connection. Adding, editing, removing, and purchasing items work offline. The changes are queued and synced in order when the connection returns. A banner shows what is waiting, and any change the server refuses (for example, an item someone else already bought) is listed.
 - **Activity log:** each list and group shows recent activity, such as who added, edited, removed, or purchased an item (with amounts and currency) and who joined or changed roles.
 - **Duplicate lists:** copy last week's list for the next trip. Every item starts unpurchased, and budgets refresh to the latest price you paid in the list's currency (never converted from another currency).
@@ -57,6 +58,8 @@ The Expo app accesses Supabase only through `src/services/` (auth, settings, cat
 
 - **Email** is delivered through an outbox. New invitations and finalized monthly reports queue a row in `email_outbox`, and the database never calls an email provider directly. The `send-emails` Edge Function claims due rows (locked, so concurrent runs never double-send), renders each email from current data, and sends it through a provider interface (Resend, or a log provider for development). Invitations that were answered, cancelled, or have expired in the meantime are skipped. Failed sends retry with backoff (1, 4, 16, 64 minutes) up to 5 attempts. Invitation emails contain only the resource name, role, and inviter, and every amount in a report email carries its currency code. Users can turn email off in Settings; in-app notifications are unaffected.
 
+- **Push delivery** mirrors email. Database events queue rows in `push_outbox` (only for users with push on and a registered phone, and never for the person who made the purchase). The `send-push` Edge Function delivers them through Expo's push service with the same locking, retries, and backoff as email, and deletes tokens Expo reports as unregistered. Devices register only through `register_push_token`; a token signed in by someone else on the same phone moves to them.
+
 ### Configure Supabase
 
 1. Copy `.env.example` to `.env`.
@@ -83,7 +86,17 @@ select vault.create_secret('https://bsffllulzwidnpdhzroq.supabase.co', 'grocefy_
 select vault.create_secret('<same EMAIL_WORKER_SECRET>', 'grocefy_email_worker_secret');
 ```
 
-The sending domain must be verified in Resend. For local development, copy `supabase/functions/.env.example` to `supabase/functions/.env` (log provider, no emails leave the machine).
+The sending domain must be verified in Resend.
+
+6. Push notifications (optional). Link the app to an Expo project so it can obtain push tokens (`npx eas init` writes `extra.eas.projectId` to `app.json`), then deploy the worker. It uses the same worker secret and Vault entries as email:
+
+```bash
+supabase functions deploy send-push
+# Only if "enhanced push security" is enabled for the Expo project:
+supabase secrets set EXPO_ACCESS_TOKEN=<token>
+```
+
+Push needs a physical phone and a development or production build (`eas build`). Without a project ID, Settings explains that push is not set up for that build. For local development, copy `supabase/functions/.env.example` to `supabase/functions/.env` (log providers: no emails or pushes leave the machine).
 
 The migrations also create the reference data (currency registry and default categories). After a schema change, regenerate the client types with `npm run db:types`.
 
@@ -98,7 +111,7 @@ The seed includes last month's purchases (so price suggestions and a finalized m
 
 ### Database tests
 
-`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, the activity log and its visibility, list duplication, price summaries and spending trends, idempotent purchases and offline timestamps, the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery), product search ranking and visibility, and custom categories on shared lists.
+`npm run test:db` starts a disposable PostgreSQL 15 container (Docker required), applies every migration on top of a minimal Supabase auth stub, and runs the suites in `supabase/tests/`. They cover the role matrix, non-member and anonymous access, invitations (including email and expiry rules), the atomic purchase transaction (including a forced mid-transaction failure), duplicate-purchase prevention, financial immutability, price suggestions across currencies, currency validation, monthly reports (category variance, currency separation, idempotency, finality, timezones, and access), purchasers keeping their history after leaving a list, the activity log and its visibility, list duplication, price summaries and spending trends, idempotent purchases and offline timestamps, push tokens and who gets which push, the email outbox (what gets queued, opt-outs, claiming, retries, and crash recovery), product search ranking and visibility, and custom categories on shared lists.
 
 ### Continuous integration
 
@@ -119,11 +132,11 @@ Run the same checks locally before opening a pull request. `npm run lint` uses E
 
 ### Email tests
 
-`npm run test:email` unit-tests the Edge Function modules under Node: templates (escaping, currency on every amount), the Resend provider, provider selection, and the worker's send/skip/failure handling. `npm run typecheck:functions` type-checks the Deno code without the Deno toolchain.
+`npm run test:email` unit-tests the Edge Function modules under Node: email templates (escaping, currency on every amount), the Resend and Expo push providers, provider selection, both workers' send/skip/failure handling (including pruning unregistered devices), and the worker secret check. `npm run typecheck:functions` type-checks the Deno code without the Deno toolchain.
 
 ### Service end-to-end tests
 
-`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, realtime delivery (to members only), the activity feed, list duplication, report and purchase exports, price book and spending trend, offline sync retries, product search, custom categories, list editing, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery. It refuses to run against a non-local API.
+`npm run test:services` runs the app's real `src/services` modules under Node against a **local** Supabase stack (`supabase start`), with React Native modules stubbed. It walks through the complete flow: sign up, create a group and list, add items, invite and accept, purchase, duplicate-purchase rejection, purchase history paging, role enforcement, price suggestions across currencies, realtime delivery (to members only), the activity feed, list duplication, report and purchase exports, price book and spending trend, offline sync retries, product search, custom categories, list editing, monthly reports, and leaving a list. With `supabase/functions/.env` present, it also calls the running `send-emails` function to check its authentication and delivery, and does the same for `send-push`. It refuses to run against a non-local API.
 
 ## Getting Started
 

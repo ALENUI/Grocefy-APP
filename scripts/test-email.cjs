@@ -96,3 +96,53 @@ test('store skips invitations that are answered or expired', async () => {
   assert.equal(await store.loadInvitation('missing'), null);
   assert.deepEqual(await store.loadInvitation('live'), { resourceName: 'a shared list', resourceType: 'list', role: 'editor', inviterName: 'Amara (@amara)', expiresAt: '2999-01-01T00:00:00Z' });
 });
+
+const { expoPushProvider, logPushProvider, createPushProvider } = require('../supabase/functions/_shared/push/providers.ts');
+const { processPushOutbox } = require('../supabase/functions/_shared/push/worker.ts');
+const { secretMatches } = require('../supabase/functions/_shared/worker-auth.ts');
+
+test('worker secret comparison', () => {
+  assert.equal(secretMatches('s3cret', 's3cret'), true);
+  assert.equal(secretMatches('s3cre', 's3cret'), false);
+  assert.equal(secretMatches(null, 's3cret'), false);
+});
+
+test('Expo push provider maps tickets, including unregistered devices', async () => {
+  const calls = [];
+  const provider = expoPushProvider('expo-token', async (url, init) => {
+    calls.push({ url, init });
+    return { ok: true, status: 200, text: async () => '', json: async () => ({ data: [{ status: 'ok', id: '1' }, { status: 'error', message: 'gone', details: { error: 'DeviceNotRegistered' } }, { status: 'error', message: 'rate limited' }] }) };
+  });
+  const results = await provider.send([1, 2, 3].map((n) => ({ to: `ExponentPushToken[${n}]`, title: 'Food', body: 'Alex bought Rice', data: { url: '/list/1' } })));
+  assert.deepEqual(results, [{ status: 'ok' }, { status: 'invalid-token' }, { status: 'error', message: 'rate limited' }]);
+  assert.equal(calls[0].url, 'https://exp.host/--/api/v2/push/send');
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer expo-token');
+  assert.equal(JSON.parse(calls[0].init.body)[0].sound, 'default');
+  const failing = expoPushProvider(undefined, async () => ({ ok: false, status: 503, text: async () => 'down', json: async () => ({}) }));
+  await assert.rejects(failing.send([{ to: 'ExponentPushToken[1]', title: 't', body: 'b', data: {} }]), /Expo push responded 503: down/);
+  assert.equal(createPushProvider({}).name, 'expo');
+  assert.equal(createPushProvider({ PUSH_PROVIDER: 'log' }).name, 'log');
+});
+
+test('push worker sends to every device, prunes unregistered ones, and isolates failures', async () => {
+  const completed = []; const removed = [];
+  const devices = { owner: ['ExponentPushToken[a]', 'ExponentPushToken[gone]'], viewer: [], partner: ['ExponentPushToken[b]'] };
+  const store = {
+    claim: async () => [
+      { id: '1', user_id: 'owner', title: 'Food', body: 'Alex bought Rice', data: {} },
+      { id: '2', user_id: 'viewer', title: 'Food', body: 'Alex bought Rice', data: {} },
+      { id: '3', user_id: 'partner', title: 'Food', body: 'Sam bought Oil', data: {} }
+    ],
+    complete: async (id, outcome, error) => { completed.push([id, outcome, error]); },
+    tokensFor: async (user) => devices[user],
+    removeTokens: async (tokens) => { removed.push(...tokens); }
+  };
+  const provider = { name: 'fake', send: async (messages) => messages.map((message) => (message.to.includes('gone') ? { status: 'invalid-token' } : message.to.includes('[b]') ? { status: 'error', message: 'MessageRateExceeded' } : { status: 'ok' })) };
+  const lines = [];
+  assert.deepEqual(await processPushOutbox(store, provider, { log: (line) => lines.push(line) }), { sent: 1, failed: 1, skipped: 1 });
+  assert.deepEqual(completed, [['1', 'sent', undefined], ['2', 'skipped', 'no registered devices'], ['3', 'failed', 'MessageRateExceeded']]);
+  assert.deepEqual(removed, ['ExponentPushToken[gone]']);
+  const logged = [];
+  await logPushProvider((line) => logged.push(line)).send([{ to: 'ExponentPushToken[secret]', title: 'Food', body: 'private', data: {} }]);
+  assert.deepEqual(logged, ['[push:log] Food'], 'the log provider never records tokens or bodies');
+});
