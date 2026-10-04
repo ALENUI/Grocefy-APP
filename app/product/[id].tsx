@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { Text, View } from 'react-native';
 import { PriceColumns } from '@/src/charts';
@@ -6,9 +6,10 @@ import { formatCurrency } from '@/src/currency';
 import { fetchPriceHistory, fetchProductName, PricePoint } from '@/src/services/insights';
 import { useAsync } from '@/src/useAsync';
 import { BackHeader, Card, EmptyState, ErrorNotice, Loading, palette, Screen } from '@/src/ui';
+import { features } from '@/src/features';
 
 /** A product's price history, one section per currency: prices in different currencies are never compared. */
-export default function ProductPrices() {
+function ProductPrices() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const state = useAsync(async () => {
     const [name, history] = await Promise.all([fetchProductName(id), fetchPriceHistory(id)]);
@@ -50,3 +51,6 @@ export default function ProductPrices() {
 function Figure({ label, value }: { label: string; value: string }) {
   return <View style={{ width: '50%' }}><Text style={{ color: palette.muted, fontSize: 12 }}>{label}</Text><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 17, marginTop: 2 }}>{value}</Text></View>;
 }
+
+/** Hidden while the "priceInsights" feature is off: old links and notifications land on Home instead. */
+export default function ProductPricesRoute() { return features.priceInsights ? <ProductPrices/> : <Redirect href="/"/>; }

@@ -9,21 +9,27 @@ import { useSession, useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
 import { BackHeader, Button, Card, EmptyState, ErrorNotice, Loading, palette, Screen } from '@/src/ui';
+import { features } from '@/src/features';
+import { setCurrentHome } from '@/src/services/home';
 
 /** Invitations received by the user and their notifications. */
 export default function Inbox() {
-  const { session } = useSession();
+  const { session, settings, refreshAccount } = useSession();
   const userId = useUserId();
   const state = useAsync(() => fetchInbox(userId, session?.user.email), [userId, session?.user.email]);
   useLive((onChange) => watchInbox(userId, onChange), state.reload, [userId]);
   const [answering, setAnswering] = useState<string>();
   // Offer push once, until the system permission has been answered either way.
   const [askPush, setAskPush] = useState(false);
-  useEffect(() => { Notifications.getPermissionsAsync().then(({ status }) => setAskPush(status === 'undetermined')).catch(() => undefined); }, []);
+  useEffect(() => { Notifications.getPermissionsAsync().then(({ status }) => setAskPush(features.pushNotifications && status === 'undetermined')).catch(() => undefined); }, []);
 
   const respond = async (id: string, accept: boolean) => {
     setAnswering(id);
-    try { await respondToInvitation(id, accept); await state.reload(); } catch (caught) { Alert.alert('Could not respond', friendlyError(caught)); } finally { setAnswering(undefined); }
+    try {
+      const invitation = await respondToInvitation(id, accept);
+      if (accept && invitation.resource_type === 'group' && !settings?.current_home_id) { await setCurrentHome(userId, invitation.resource_id); await refreshAccount(); }
+      await state.reload();
+    } catch (caught) { Alert.alert('Could not respond', friendlyError(caught)); } finally { setAnswering(undefined); }
   };
   const open = (id: string, read: boolean) => { if (!read) markNotificationRead(id).then(state.reload).catch(() => undefined); };
 

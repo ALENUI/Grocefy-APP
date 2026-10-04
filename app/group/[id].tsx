@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { Text, View } from 'react-native';
 import { ActivityFeed } from '@/src/ActivityFeed';
@@ -12,9 +12,10 @@ import { useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
 import { BackHeader, Button, Card, EmptyState, ErrorNotice, IconButton, Loading, palette, Screen } from '@/src/ui';
+import { features } from '@/src/features';
 
 /** A group's lists and totals. Totals are shown per currency because lists in a group may use different currencies. */
-export default function GroupDetail() {
+function GroupDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useUserId();
   const state = useAsync(async () => {
@@ -44,3 +45,6 @@ export default function GroupDetail() {
     <ActivityFeed entries={activity}/>
   </Screen>;
 }
+
+/** Hidden while the "multipleHomes" feature is off: old links and notifications land on Home instead. */
+export default function GroupDetailRoute() { return features.multipleHomes ? <GroupDetail/> : <Redirect href="/"/>; }

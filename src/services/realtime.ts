@@ -1,7 +1,7 @@
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabaseClient } from './supabase';
 
-type Watched = { table: 'shopping_lists' | 'list_items' | 'purchases' | 'list_members' | 'group_members' | 'notifications' | 'invitations' | 'activity_log'; filter?: string };
+type Watched = { table: 'shopping_lists' | 'list_items' | 'purchases' | 'list_members' | 'group_members' | 'notifications' | 'invitations' | 'activity_log' | 'home_items'; filter?: string };
 
 let channelCount = 0;
 
@@ -44,4 +44,10 @@ export const watchGroup = (groupId: string, onChange: () => void) => watchTables
   { table: 'purchases', filter: `group_id=eq.${groupId}` },
   { table: 'list_items' },
   { table: 'activity_log', filter: `group_id=eq.${groupId}` }
+], onChange);
+
+/** Home screen: the inventory, and purchases that restock it. */
+export const watchHome = (homeId: string, onChange: () => void) => watchTables([
+  { table: 'home_items', filter: `group_id=eq.${homeId}` },
+  { table: 'purchases', filter: `group_id=eq.${homeId}` }
 ], onChange);

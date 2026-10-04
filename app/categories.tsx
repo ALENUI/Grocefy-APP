@@ -5,9 +5,11 @@ import { friendlyError } from '@/src/services/errors';
 import { useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
 import { BackHeader, Button, Card, ErrorNotice, Field, Loading, palette, Screen, Sheet } from '@/src/ui';
+import { Redirect } from 'expo-router';
+import { features } from '@/src/features';
 
 /** Built-in categories plus the user's own. Custom categories are archived, never deleted, so history keeps its labels. */
-export default function Categories() {
+function Categories() {
   const userId = useUserId();
   const categories = useAsync(() => fetchCategories(userId), [userId]);
   const [editing, setEditing] = useState<Category | 'new' | null>(null);
@@ -55,3 +57,6 @@ function CategorySheet({ target, userId, onClose, onSaved }: { target: Category 
     <Button label="Save" onPress={save} loading={busy}/>
   </Sheet>;
 }
+
+/** Hidden while the "customCategories" feature is off: old links and notifications land on Home instead. */
+export default function CategoriesRoute() { return features.customCategories ? <Categories/> : <Redirect href="/"/>; }

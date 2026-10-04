@@ -235,6 +235,87 @@ export type Database = {
           },
         ];
       };
+      home_items: {
+        Row: {
+          archived_at: string | null;
+          category_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          group_id: string;
+          id: string;
+          product_id: string;
+          status: Database['public']['Enums']['stock_status'];
+          unit: string | null;
+          updated_at: string;
+          updated_by: string | null;
+          usual_quantity: number;
+        };
+        Insert: {
+          archived_at?: string | null;
+          category_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          group_id: string;
+          id?: string;
+          product_id: string;
+          status?: Database['public']['Enums']['stock_status'];
+          unit?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+          usual_quantity?: number;
+        };
+        Update: {
+          archived_at?: string | null;
+          category_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          group_id?: string;
+          id?: string;
+          product_id?: string;
+          status?: Database['public']['Enums']['stock_status'];
+          unit?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+          usual_quantity?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'home_items_category_id_fkey';
+            columns: ['category_id'];
+            isOneToOne: false;
+            referencedRelation: 'categories';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'home_items_created_by_fkey';
+            columns: ['created_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'home_items_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'shopping_groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'home_items_product_id_fkey';
+            columns: ['product_id'];
+            isOneToOne: false;
+            referencedRelation: 'products';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'home_items_updated_by_fkey';
+            columns: ['updated_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       invitations: {
         Row: {
           accepted_at: string | null;
@@ -1082,6 +1163,7 @@ export type Database = {
       user_settings: {
         Row: {
           created_at: string;
+          current_home_id: string | null;
           default_currency: string;
           email_notifications: boolean;
           language: string | null;
@@ -1092,6 +1174,7 @@ export type Database = {
         };
         Insert: {
           created_at?: string;
+          current_home_id?: string | null;
           default_currency?: string;
           email_notifications?: boolean;
           language?: string | null;
@@ -1102,6 +1185,7 @@ export type Database = {
         };
         Update: {
           created_at?: string;
+          current_home_id?: string | null;
           default_currency?: string;
           email_notifications?: boolean;
           language?: string | null;
@@ -1111,6 +1195,13 @@ export type Database = {
           user_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'user_settings_current_home_id_fkey';
+            columns: ['current_home_id'];
+            isOneToOne: false;
+            referencedRelation: 'shopping_groups';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'user_settings_default_currency_fkey';
             columns: ['default_currency'];
@@ -1268,6 +1359,25 @@ export type Database = {
         Args: { error_message?: string; outcome: Database['public']['Enums']['email_status']; push_id: string };
         Returns: undefined;
       };
+      create_home: {
+        Args: { currency_code?: string; home_name: string };
+        Returns: {
+          archived_at: string | null;
+          created_at: string;
+          currency_code: string;
+          description: string | null;
+          id: string;
+          name: string;
+          owner_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'shopping_groups';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       create_invitation: {
         Args: {
           invitee: string;
@@ -1368,6 +1478,31 @@ export type Database = {
           subject: string;
         };
         Returns: undefined;
+      };
+      mark_home_item: {
+        Args: { new_status: Database['public']['Enums']['stock_status']; target_item_id: string; target_list_id?: string };
+        Returns: {
+          budgeted_total: number | null;
+          budgeted_unit_price: number;
+          category_id: string | null;
+          created_at: string;
+          created_by: string;
+          id: string;
+          list_id: string;
+          notes: string | null;
+          product_id: string;
+          purchased_at: string | null;
+          quantity: number;
+          status: Database['public']['Enums']['list_item_status'];
+          unit: string | null;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'list_items';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       notify_user: {
         Args: {
@@ -1501,6 +1636,7 @@ export type Database = {
       list_item_status: 'pending' | 'purchased' | 'archived';
       member_role: 'owner' | 'viewer' | 'editor' | 'partner';
       member_status: 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
+      stock_status: 'in_stock' | 'low' | 'out';
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -1624,6 +1760,7 @@ export const Constants = {
       list_item_status: ['pending', 'purchased', 'archived'],
       member_role: ['owner', 'viewer', 'editor', 'partner'],
       member_status: ['pending', 'accepted', 'declined', 'expired', 'cancelled'],
+      stock_status: ['in_stock', 'low', 'out'],
     },
   },
 } as const;

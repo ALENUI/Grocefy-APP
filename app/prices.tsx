@@ -1,14 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { formatCurrency } from '@/src/currency';
 import { fetchPriceSummaries, PriceSummary, priceChange } from '@/src/services/insights';
 import { useAsync } from '@/src/useAsync';
 import { BackHeader, Card, EmptyState, ErrorNotice, Loading, palette, Screen, styles } from '@/src/ui';
+import { features } from '@/src/features';
 
 /** Price book: the last price paid for everything you buy, with the change since the previous purchase. */
-export default function Prices() {
+function Prices() {
   const [query, setQuery] = useState(''); const [search, setSearch] = useState('');
   useEffect(() => { const timer = setTimeout(() => setSearch(query), 250); return () => clearTimeout(timer); }, [query]);
   const summaries = useAsync(() => fetchPriceSummaries(search), [search]);
@@ -39,3 +40,6 @@ function PriceRow({ summary, first }: { summary: PriceSummary; first: boolean })
     <Ionicons name="chevron-forward" size={18} color="#A3ADA6"/>
   </Pressable>;
 }
+
+/** Hidden while the "priceInsights" feature is off: old links and notifications land on Home instead. */
+export default function PricesRoute() { return features.priceInsights ? <Prices/> : <Redirect href="/"/>; }
