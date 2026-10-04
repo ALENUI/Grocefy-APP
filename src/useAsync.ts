@@ -49,7 +49,7 @@ export function useAsync<T>(load: () => Promise<T>, deps: DependencyList, option
     } finally {
       if (request === latest.current) setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
   }, [...deps, cacheKey]);
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
   return { data, error, loading, reload, ...saved };
