@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { ColorValue } from 'react-native';
 import { features } from '@/src/features';
 import { palette } from '@/src/ui';
 
-const icon = (name: keyof typeof Ionicons.glyphMap) => function TabIcon({ color, size }: { color: string; size: number }) { return <Ionicons name={name} color={color} size={size}/>; };
+const icon = (name: keyof typeof Ionicons.glyphMap) => function TabIcon({ color, size }: { color: ColorValue; size: number }) { return <Ionicons name={name} color={color} size={size}/>; };
 
 // Hidden features keep their routes but lose their tab (href: null).
 export default function TabsLayout() {

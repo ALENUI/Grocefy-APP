@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { csvAmount, slug, toCsv } from '../csv';
 import { MonthlyReportWithItems } from './finance';
@@ -54,9 +54,10 @@ export async function fetchPurchasesInPeriod(scope: PeriodScope, start: string, 
 /** Writes CSV to the cache directory and opens the system share sheet (save to Files, email, Drive, …). */
 export async function shareCsv(fileName: string, csv: string, title: string): Promise<void> {
   if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing is not available on this device');
-  const uri = `${FileSystem.cacheDirectory}${slug(fileName)}.csv`;
+  const file = new File(Paths.cache, `${slug(fileName)}.csv`);
+  file.create({ overwrite: true });
   // A byte-order mark makes Excel read the file as UTF-8 (currency symbols, accented names).
-  await FileSystem.writeAsStringAsync(uri, BYTE_ORDER_MARK + csv, { encoding: FileSystem.EncodingType.UTF8 });
-  await Sharing.shareAsync(uri, { mimeType: 'text/csv', UTI: 'public.comma-separated-values-text', dialogTitle: title });
+  file.write(BYTE_ORDER_MARK + csv);
+  await Sharing.shareAsync(file.uri, { mimeType: 'text/csv', UTI: 'public.comma-separated-values-text', dialogTitle: title });
 }
 

@@ -11,7 +11,7 @@ const tokenKey = 'grocefy:push-token';
 
 // Show notifications while the app is open too; the list itself also updates live.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: false, shouldSetBadge: false })
+  handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false })
 });
 
 export type RegistrationResult = 'registered' | 'denied' | 'unsupported' | 'not-configured';

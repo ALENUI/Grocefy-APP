@@ -17,7 +17,7 @@ const stubs = {
   } },
   'expo-linking': { createURL: (path) => `grocefy://${path.replace(/^\//, '')}` },
   'react-native-url-polyfill/auto': {},
-  'expo-file-system': { cacheDirectory: 'file:///cache/', EncodingType: { UTF8: 'utf8' }, writeAsStringAsync: async () => undefined },
+  'expo-file-system': { Paths: { cache: 'file:///cache/' }, File: class { constructor(...parts) { this.uri = parts.join(''); } create() {} write() {} } },
   'expo-sharing': { isAvailableAsync: async () => false, shareAsync: async () => undefined }
 };
 const originalLoad = Module._load;
