@@ -1,9 +1,8 @@
-import * as Notifications from 'expo-notifications';
 import React, { useEffect, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import { friendlyError } from '@/src/services/errors';
 import { watchInbox } from '@/src/services/realtime';
-import { registerDevice } from '@/src/notifications';
+import { pushPermissionStatus, registerDevice } from '@/src/notifications';
 import { fetchInbox, markAllNotificationsRead, markNotificationRead, respondToInvitation } from '@/src/services/sharing';
 import { useSession, useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
@@ -21,7 +20,7 @@ export default function Inbox() {
   const [answering, setAnswering] = useState<string>();
   // Offer push once, until the system permission has been answered either way.
   const [askPush, setAskPush] = useState(false);
-  useEffect(() => { Notifications.getPermissionsAsync().then(({ status }) => setAskPush(features.pushNotifications && status === 'undetermined')).catch(() => undefined); }, []);
+  useEffect(() => { pushPermissionStatus().then((status) => setAskPush(features.pushNotifications && status === 'undetermined')).catch(() => undefined); }, []);
 
   const respond = async (id: string, accept: boolean) => {
     setAnswering(id);
