@@ -119,3 +119,58 @@ test('connection failures are told apart from server refusals', () => {
   assert.equal(isNetworkError(new TypeError('Failed to fetch')), true);
   assert.equal(isNetworkError(toServiceError({ message: 'FORBIDDEN' })), false);
 });
+
+// Push must never crash app start-up: since SDK 55, importing expo-notifications in Expo Go on Android throws.
+const Module = require('node:module');
+function loadNotificationsModule({ expoGo, platform }) {
+  const loads = { notifications: 0 };
+  const stubs = {
+    expo: { isRunningInExpoGo: () => expoGo },
+    'react-native': { Platform: { OS: platform } },
+    'expo-constants': { __esModule: true, default: { expoConfig: { extra: { eas: { projectId: 'project-id' } } } } },
+    'expo-device': { isDevice: true },
+    'expo-router': { router: { push: () => undefined } },
+    react: { useEffect: () => undefined },
+    '@react-native-async-storage/async-storage': { __esModule: true, default: { getItem: async () => null, setItem: async () => undefined, removeItem: async () => undefined } },
+    './services/push': { registerPushToken: async () => undefined, unregisterPushToken: async () => undefined },
+    'expo-notifications': () => {
+      loads.notifications += 1;
+      if (expoGo && platform === 'android') throw new Error('expo-notifications: Android Push notifications ... removed from Expo Go');
+      return {
+        setNotificationHandler: () => undefined, setNotificationChannelAsync: async () => undefined, AndroidImportance: { DEFAULT: 3 },
+        getPermissionsAsync: async () => ({ status: 'granted' }), requestPermissionsAsync: async () => ({ status: 'granted' }),
+        getExpoPushTokenAsync: async () => ({ data: 'ExponentPushToken[test]' })
+      };
+    }
+  };
+  const original = Module._load;
+  Module._load = function load(request, ...rest) {
+    if (request in stubs) return typeof stubs[request] === 'function' ? stubs[request]() : stubs[request];
+    return original.call(this, request, ...rest);
+  };
+  const path = require.resolve('../src/notifications.ts');
+  delete require.cache[path];
+  // Stubs stay active until restore(): the module loads expo-notifications lazily, during the test.
+  return { module: require(path), loads, restore: () => { Module._load = original; } };
+}
+
+test('push code loads safely in Expo Go on Android and is a no-op there', async () => {
+  const { module, loads, restore } = loadNotificationsModule({ expoGo: true, platform: 'android' });
+  try {
+    assert.equal(loads.notifications, 0, 'expo-notifications is not imported at start-up');
+    assert.equal(module.pushSupportedHere, false);
+    assert.equal(await module.registerDevice({ ask: true }), 'expo-go');
+    assert.equal(await module.pushPermissionStatus(), null);
+    assert.equal(loads.notifications, 0, 'nor on use');
+  } finally { restore(); }
+});
+
+test('push works in development and production builds, loading expo-notifications lazily', async () => {
+  const { module, loads, restore } = loadNotificationsModule({ expoGo: false, platform: 'android' });
+  try {
+    assert.equal(loads.notifications, 0, 'not loaded until needed');
+    assert.equal(await module.pushPermissionStatus(), 'granted');
+    assert.equal(await module.registerDevice({ ask: false }), 'registered');
+    assert.equal(loads.notifications, 1, 'loaded once and reused');
+  } finally { restore(); }
+});

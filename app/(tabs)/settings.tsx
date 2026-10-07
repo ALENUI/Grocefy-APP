@@ -24,6 +24,7 @@ export default function Settings() {
       const result = await registerDevice({ ask: true });
       if (result === 'denied') Alert.alert('Notifications are off for Grocefy', 'Allow notifications for Grocefy in your phone settings, then try again.');
       if (result === 'unsupported') Alert.alert('Not available here', 'Push notifications need a physical iPhone or Android phone.');
+      if (result === 'expo-go') Alert.alert('Not available in Expo Go', 'On Android, push notifications need a development build of Grocefy. Everything else works in Expo Go.');
       if (result === 'not-configured') Alert.alert('Push is not set up for this build', 'This build has no Expo project ID. See the README section on push notifications.');
       if (result !== 'registered') return;
     }
