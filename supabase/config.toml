@@ -5,3 +5,20 @@ enabled = true
 
 [db]
 major_version = 15
+
+[db.seed]
+# Demo accounts and data for local development (see the file header).
+sql_paths = ["./seed/seed.sql"]
+
+[auth]
+# Email links (confirmation, password reset) return to the app through its deep-link scheme.
+site_url = "grocefy://"
+additional_redirect_urls = ["grocefy://**", "exp://**"]
+
+[functions.send-emails]
+# Called by pg_cron, not by app users: authenticated with the x-worker-secret header instead of a user JWT.
+verify_jwt = false
+
+[functions.send-push]
+# Called by pg_cron with the shared worker secret, like send-emails.
+verify_jwt = false

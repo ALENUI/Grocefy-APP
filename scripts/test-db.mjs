@@ -30,7 +30,8 @@ try {
     catch { if (attempt > 60) throw new Error('PostgreSQL did not become ready'); execFileSync(process.execPath, ['-e', 'setTimeout(() => {}, 500)']); }
   }
   console.log('Applying schema');
-  for (const file of ['supabase/tests/harness/supabase_stub.sql', ...sqlFiles('supabase/migrations', '.sql'), 'supabase/seed/seed.sql', 'supabase/tests/harness/helpers.sql']) psql(file);
+  // The demo seed (supabase/seed/seed.sql) needs the real Supabase auth schema; it is exercised by `supabase db reset`.
+  for (const file of ['supabase/tests/harness/supabase_stub.sql', ...sqlFiles('supabase/migrations', '.sql'), 'supabase/tests/harness/helpers.sql']) psql(file);
   console.log('Running tests');
   for (const file of sqlFiles('supabase/tests', '.test.sql')) {
     try { psql(file); } catch { failed = true; }

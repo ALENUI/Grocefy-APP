@@ -10,7 +10,7 @@ grant usage on schema auth, extensions to anon, authenticated, service_role;
 create extension pgcrypto with schema extensions; -- Supabase keeps extensions out of the API schema
 
 create table auth.users (
-  id uuid primary key default gen_random_uuid(), email text unique, raw_user_meta_data jsonb not null default '{}',
+  id uuid primary key default gen_random_uuid(), email text unique, email_confirmed_at timestamptz, raw_user_meta_data jsonb not null default '{}',
   created_at timestamptz not null default now()
 );
 

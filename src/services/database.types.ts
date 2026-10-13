@@ -3,6 +3,68 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: Database['public']['Enums']['activity_action'];
+          actor_id: string | null;
+          created_at: string;
+          group_id: string | null;
+          id: string;
+          list_id: string | null;
+          metadata: NonNullable<Json>;
+          subject: string | null;
+        };
+        Insert: {
+          action: Database['public']['Enums']['activity_action'];
+          actor_id?: string | null;
+          created_at?: string;
+          group_id?: string | null;
+          id?: string;
+          list_id?: string | null;
+          metadata?: NonNullable<Json>;
+          subject?: string | null;
+        };
+        Update: {
+          action?: Database['public']['Enums']['activity_action'];
+          actor_id?: string | null;
+          created_at?: string;
+          group_id?: string | null;
+          id?: string;
+          list_id?: string | null;
+          metadata?: NonNullable<Json>;
+          subject?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'activity_log_actor_id_fkey';
+            columns: ['actor_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'activity_log_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'shopping_groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'activity_log_list_id_fkey';
+            columns: ['list_id'];
+            isOneToOne: false;
+            referencedRelation: 'list_totals';
+            referencedColumns: ['list_id'];
+          },
+          {
+            foreignKeyName: 'activity_log_list_id_fkey';
+            columns: ['list_id'];
+            isOneToOne: false;
+            referencedRelation: 'shopping_lists';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       categories: {
         Row: {
           archived_at: string | null;
@@ -65,6 +127,59 @@ export type Database = {
         };
         Relationships: [];
       };
+      email_outbox: {
+        Row: {
+          attempts: number;
+          created_at: string;
+          id: string;
+          kind: Database['public']['Enums']['email_kind'];
+          last_error: string | null;
+          locked_at: string | null;
+          next_attempt_at: string;
+          recipient_id: string | null;
+          reference_id: string;
+          sent_at: string | null;
+          status: Database['public']['Enums']['email_status'];
+          to_email: string;
+        };
+        Insert: {
+          attempts?: number;
+          created_at?: string;
+          id?: string;
+          kind: Database['public']['Enums']['email_kind'];
+          last_error?: string | null;
+          locked_at?: string | null;
+          next_attempt_at?: string;
+          recipient_id?: string | null;
+          reference_id: string;
+          sent_at?: string | null;
+          status?: Database['public']['Enums']['email_status'];
+          to_email: string;
+        };
+        Update: {
+          attempts?: number;
+          created_at?: string;
+          id?: string;
+          kind?: Database['public']['Enums']['email_kind'];
+          last_error?: string | null;
+          locked_at?: string | null;
+          next_attempt_at?: string;
+          recipient_id?: string | null;
+          reference_id?: string;
+          sent_at?: string | null;
+          status?: Database['public']['Enums']['email_status'];
+          to_email?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'email_outbox_recipient_id_fkey';
+            columns: ['recipient_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       group_members: {
         Row: {
           created_at: string;
@@ -120,6 +235,87 @@ export type Database = {
           },
         ];
       };
+      home_items: {
+        Row: {
+          archived_at: string | null;
+          category_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          group_id: string;
+          id: string;
+          product_id: string;
+          status: Database['public']['Enums']['stock_status'];
+          unit: string | null;
+          updated_at: string;
+          updated_by: string | null;
+          usual_quantity: number;
+        };
+        Insert: {
+          archived_at?: string | null;
+          category_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          group_id: string;
+          id?: string;
+          product_id: string;
+          status?: Database['public']['Enums']['stock_status'];
+          unit?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+          usual_quantity?: number;
+        };
+        Update: {
+          archived_at?: string | null;
+          category_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          group_id?: string;
+          id?: string;
+          product_id?: string;
+          status?: Database['public']['Enums']['stock_status'];
+          unit?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+          usual_quantity?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'home_items_category_id_fkey';
+            columns: ['category_id'];
+            isOneToOne: false;
+            referencedRelation: 'categories';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'home_items_created_by_fkey';
+            columns: ['created_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'home_items_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'shopping_groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'home_items_product_id_fkey';
+            columns: ['product_id'];
+            isOneToOne: false;
+            referencedRelation: 'products';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'home_items_updated_by_fkey';
+            columns: ['updated_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       invitations: {
         Row: {
           accepted_at: string | null;
@@ -130,9 +326,12 @@ export type Database = {
           invitee_user_id: string | null;
           inviter_id: string;
           resource_id: string;
+          resource_name: string | null;
           resource_type: Database['public']['Enums']['invitation_resource'];
+          responded_at: string | null;
           role: Database['public']['Enums']['member_role'];
           status: Database['public']['Enums']['member_status'];
+          is_invitee: boolean | null;
         };
         Insert: {
           accepted_at?: string | null;
@@ -143,7 +342,9 @@ export type Database = {
           invitee_user_id?: string | null;
           inviter_id: string;
           resource_id: string;
+          resource_name?: string | null;
           resource_type: Database['public']['Enums']['invitation_resource'];
+          responded_at?: string | null;
           role: Database['public']['Enums']['member_role'];
           status?: Database['public']['Enums']['member_status'];
         };
@@ -156,7 +357,9 @@ export type Database = {
           invitee_user_id?: string | null;
           inviter_id?: string;
           resource_id?: string;
+          resource_name?: string | null;
           resource_type?: Database['public']['Enums']['invitation_resource'];
+          responded_at?: string | null;
           role?: Database['public']['Enums']['member_role'];
           status?: Database['public']['Enums']['member_status'];
         };
@@ -384,6 +587,8 @@ export type Database = {
           list_id: string | null;
           month: number;
           owner_id: string;
+          period_end: string | null;
+          period_start: string | null;
           total_budget: number;
           total_purchased: number;
           total_variance: number;
@@ -398,6 +603,8 @@ export type Database = {
           list_id?: string | null;
           month: number;
           owner_id: string;
+          period_end?: string | null;
+          period_start?: string | null;
           total_budget: number;
           total_purchased: number;
           total_variance: number;
@@ -412,6 +619,8 @@ export type Database = {
           list_id?: string | null;
           month?: number;
           owner_id?: string;
+          period_end?: string | null;
+          period_start?: string | null;
           total_budget?: number;
           total_purchased?: number;
           total_variance?: number;
@@ -640,6 +849,7 @@ export type Database = {
         Row: {
           budgeted_amount: number;
           category_id: string | null;
+          client_ref: string | null;
           created_at: string;
           currency_code: string;
           group_id: string | null;
@@ -655,6 +865,7 @@ export type Database = {
         Insert: {
           budgeted_amount: number;
           category_id?: string | null;
+          client_ref?: string | null;
           created_at?: string;
           currency_code: string;
           group_id?: string | null;
@@ -670,6 +881,7 @@ export type Database = {
         Update: {
           budgeted_amount?: number;
           category_id?: string | null;
+          client_ref?: string | null;
           created_at?: string;
           currency_code?: string;
           group_id?: string | null;
@@ -734,6 +946,97 @@ export type Database = {
           },
           {
             foreignKeyName: 'purchases_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      push_outbox: {
+        Row: {
+          attempts: number;
+          body: string;
+          created_at: string;
+          data: NonNullable<Json>;
+          dedupe_key: string | null;
+          id: string;
+          last_error: string | null;
+          locked_at: string | null;
+          next_attempt_at: string;
+          sent_at: string | null;
+          status: Database['public']['Enums']['email_status'];
+          title: string;
+          user_id: string;
+        };
+        Insert: {
+          attempts?: number;
+          body: string;
+          created_at?: string;
+          data?: NonNullable<Json>;
+          dedupe_key?: string | null;
+          id?: string;
+          last_error?: string | null;
+          locked_at?: string | null;
+          next_attempt_at?: string;
+          sent_at?: string | null;
+          status?: Database['public']['Enums']['email_status'];
+          title: string;
+          user_id: string;
+        };
+        Update: {
+          attempts?: number;
+          body?: string;
+          created_at?: string;
+          data?: NonNullable<Json>;
+          dedupe_key?: string | null;
+          id?: string;
+          last_error?: string | null;
+          locked_at?: string | null;
+          next_attempt_at?: string;
+          sent_at?: string | null;
+          status?: Database['public']['Enums']['email_status'];
+          title?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'push_outbox_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      push_tokens: {
+        Row: {
+          created_at: string;
+          id: string;
+          last_seen_at: string;
+          platform: string | null;
+          token: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          platform?: string | null;
+          token: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          last_seen_at?: string;
+          platform?: string | null;
+          token?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'push_tokens_user_id_fkey';
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
@@ -860,29 +1163,45 @@ export type Database = {
       user_settings: {
         Row: {
           created_at: string;
+          current_home_id: string | null;
           default_currency: string;
+          email_notifications: boolean;
           language: string | null;
+          push_notifications: boolean;
           timezone: string | null;
           updated_at: string;
           user_id: string;
         };
         Insert: {
           created_at?: string;
+          current_home_id?: string | null;
           default_currency?: string;
+          email_notifications?: boolean;
           language?: string | null;
+          push_notifications?: boolean;
           timezone?: string | null;
           updated_at?: string;
           user_id: string;
         };
         Update: {
           created_at?: string;
+          current_home_id?: string | null;
           default_currency?: string;
+          email_notifications?: boolean;
           language?: string | null;
+          push_notifications?: boolean;
           timezone?: string | null;
           updated_at?: string;
           user_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'user_settings_current_home_id_fkey';
+            columns: ['current_home_id'];
+            isOneToOne: false;
+            referencedRelation: 'shopping_groups';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'user_settings_default_currency_fkey';
             columns: ['default_currency'];
@@ -961,6 +1280,180 @@ export type Database = {
       can_manage_list: { Args: { target_list_id: string }; Returns: boolean };
       can_purchase_list: { Args: { target_list_id: string }; Returns: boolean };
       can_view_list: { Args: { target_list_id: string }; Returns: boolean };
+      cancel_invitation: {
+        Args: { target_invitation_id: string };
+        Returns: {
+          accepted_at: string | null;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          invitee_email: string | null;
+          invitee_user_id: string | null;
+          inviter_id: string;
+          resource_id: string;
+          resource_name: string | null;
+          resource_type: Database['public']['Enums']['invitation_resource'];
+          responded_at: string | null;
+          role: Database['public']['Enums']['member_role'];
+          status: Database['public']['Enums']['member_status'];
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'invitations';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      claim_email_batch: {
+        Args: { batch_size?: number };
+        Returns: {
+          attempts: number;
+          created_at: string;
+          id: string;
+          kind: Database['public']['Enums']['email_kind'];
+          last_error: string | null;
+          locked_at: string | null;
+          next_attempt_at: string;
+          recipient_id: string | null;
+          reference_id: string;
+          sent_at: string | null;
+          status: Database['public']['Enums']['email_status'];
+          to_email: string;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'email_outbox';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      claim_push_batch: {
+        Args: { batch_size?: number };
+        Returns: {
+          attempts: number;
+          body: string;
+          created_at: string;
+          data: NonNullable<Json>;
+          dedupe_key: string | null;
+          id: string;
+          last_error: string | null;
+          locked_at: string | null;
+          next_attempt_at: string;
+          sent_at: string | null;
+          status: Database['public']['Enums']['email_status'];
+          title: string;
+          user_id: string;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'push_outbox';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      complete_email: {
+        Args: { email_id: string; error_message?: string; outcome: Database['public']['Enums']['email_status'] };
+        Returns: undefined;
+      };
+      complete_push: {
+        Args: { error_message?: string; outcome: Database['public']['Enums']['email_status']; push_id: string };
+        Returns: undefined;
+      };
+      create_home: {
+        Args: { currency_code?: string; home_name: string };
+        Returns: {
+          archived_at: string | null;
+          created_at: string;
+          currency_code: string;
+          description: string | null;
+          id: string;
+          name: string;
+          owner_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'shopping_groups';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_invitation: {
+        Args: {
+          invitee: string;
+          target_resource_id: string;
+          target_resource_type: Database['public']['Enums']['invitation_resource'];
+          target_role: Database['public']['Enums']['member_role'];
+        };
+        Returns: {
+          accepted_at: string | null;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          invitee_email: string | null;
+          invitee_user_id: string | null;
+          inviter_id: string;
+          resource_id: string;
+          resource_name: string | null;
+          resource_type: Database['public']['Enums']['invitation_resource'];
+          responded_at: string | null;
+          role: Database['public']['Enums']['member_role'];
+          status: Database['public']['Enums']['member_status'];
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'invitations';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      current_confirmed_email: { Args: Record<PropertyKey, never>; Returns: string };
+      duplicate_list: {
+        Args: { new_name?: string; source_list_id: string };
+        Returns: {
+          archived_at: string | null;
+          category_id: string | null;
+          created_at: string;
+          currency_code: string;
+          description: string | null;
+          group_id: string | null;
+          id: string;
+          name: string;
+          owner_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'shopping_lists';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      generate_monthly_report: {
+        Args: { target_group_id?: string; target_list_id?: string; target_month: number; target_year: number };
+        Returns: {
+          created_at: string;
+          currency_code: string;
+          generated_at: string;
+          group_id: string | null;
+          id: string;
+          list_id: string | null;
+          month: number;
+          owner_id: string;
+          period_end: string | null;
+          period_start: string | null;
+          total_budget: number;
+          total_purchased: number;
+          total_variance: number;
+          year: number;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'monthly_reports';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       get_group_role: { Args: { target_group_id: string }; Returns: Database['public']['Enums']['member_role'] };
       get_list_role: { Args: { target_list_id: string }; Returns: Database['public']['Enums']['member_role'] };
       get_price_suggestion: {
@@ -974,12 +1467,76 @@ export type Database = {
         }[];
       };
       is_client_request: { Args: Record<PropertyKey, never>; Returns: boolean };
+      is_invitee: { Args: { invitation: Database['public']['Tables']['invitations']['Row'] }; Returns: boolean };
       is_username_available: { Args: { candidate: string }; Returns: boolean };
+      log_activity: {
+        Args: {
+          action: Database['public']['Enums']['activity_action'];
+          group_id: string;
+          list_id: string;
+          metadata?: Json;
+          subject: string;
+        };
+        Returns: undefined;
+      };
+      mark_home_item: {
+        Args: { new_status: Database['public']['Enums']['stock_status']; target_item_id: string; target_list_id?: string };
+        Returns: {
+          budgeted_total: number | null;
+          budgeted_unit_price: number;
+          category_id: string | null;
+          created_at: string;
+          created_by: string;
+          id: string;
+          list_id: string;
+          notes: string | null;
+          product_id: string;
+          purchased_at: string | null;
+          quantity: number;
+          status: Database['public']['Enums']['list_item_status'];
+          unit: string | null;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'list_items';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      notify_user: {
+        Args: {
+          notification_message: string;
+          notification_title: string;
+          notification_type: string;
+          recipient: string;
+          target_id: string;
+          target_type: string;
+        };
+        Returns: undefined;
+      };
+      product_name: { Args: { product_id: string }; Returns: string };
+      product_price_summary: {
+        Args: { result_limit?: number; search?: string };
+        Returns: {
+          average_price: number;
+          currency_code: string;
+          last_price: number;
+          last_purchased_at: string;
+          max_price: number;
+          min_price: number;
+          previous_price: number;
+          product_id: string;
+          product_name: string;
+          purchase_count: number;
+        }[];
+      };
       purchase_list_item: {
-        Args: { actual_amount?: number; target_item_id: string; use_budgeted_amount?: boolean };
+        Args: { actual_amount?: number; client_ref?: string; purchased_at?: string; target_item_id: string; use_budgeted_amount?: boolean };
         Returns: {
           budgeted_amount: number;
           category_id: string | null;
+          client_ref: string | null;
           created_at: string;
           currency_code: string;
           group_id: string | null;
@@ -999,14 +1556,87 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      queue_push: { Args: { body: string; data: Json; dedupe_key: string; recipient: string; title: string }; Returns: undefined };
+      register_push_token: { Args: { platform?: string; token: string }; Returns: undefined };
       require_active_currency: { Args: { code: string }; Returns: undefined };
+      respond_to_invitation: {
+        Args: { accept: boolean; target_invitation_id: string };
+        Returns: {
+          accepted_at: string | null;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          invitee_email: string | null;
+          invitee_user_id: string | null;
+          inviter_id: string;
+          resource_id: string;
+          resource_name: string | null;
+          resource_type: Database['public']['Enums']['invitation_resource'];
+          responded_at: string | null;
+          role: Database['public']['Enums']['member_role'];
+          status: Database['public']['Enums']['member_status'];
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'invitations';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      search_products: {
+        Args: { query: string; result_limit?: number };
+        Returns: {
+          archived_at: string | null;
+          created_at: string;
+          default_category_id: string | null;
+          id: string;
+          name: string;
+          notes: string | null;
+          owner_id: string;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'products';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       shares_resource_with: { Args: { other_user: string }; Returns: boolean };
+      spending_trend: {
+        Args: { months?: number; target_group_id?: string };
+        Returns: {
+          budgeted: number;
+          currency_code: string;
+          month: number;
+          purchase_count: number;
+          purchased: number;
+          year: number;
+        }[];
+      };
+      unregister_push_token: { Args: { token: string }; Returns: undefined };
+      username_of: { Args: { user_id: string }; Returns: string };
+      wants_email: { Args: { user_id: string }; Returns: boolean };
+      wants_push: { Args: { user_id: string }; Returns: boolean };
     };
     Enums: {
+      activity_action:
+        | 'LIST_CREATED'
+        | 'LIST_ARCHIVED'
+        | 'ITEM_ADDED'
+        | 'ITEM_EDITED'
+        | 'ITEM_REMOVED'
+        | 'ITEM_PURCHASED'
+        | 'MEMBER_ADDED'
+        | 'MEMBER_ROLE_CHANGED'
+        | 'MEMBER_REMOVED';
+      email_kind: 'invitation' | 'monthly_report';
+      email_status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped';
       invitation_resource: 'group' | 'list';
       list_item_status: 'pending' | 'purchased' | 'archived';
       member_role: 'owner' | 'viewer' | 'editor' | 'partner';
       member_status: 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
+      stock_status: 'in_stock' | 'low' | 'out';
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -1113,10 +1743,24 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      activity_action: [
+        'LIST_CREATED',
+        'LIST_ARCHIVED',
+        'ITEM_ADDED',
+        'ITEM_EDITED',
+        'ITEM_REMOVED',
+        'ITEM_PURCHASED',
+        'MEMBER_ADDED',
+        'MEMBER_ROLE_CHANGED',
+        'MEMBER_REMOVED',
+      ],
+      email_kind: ['invitation', 'monthly_report'],
+      email_status: ['pending', 'sending', 'sent', 'failed', 'skipped'],
       invitation_resource: ['group', 'list'],
       list_item_status: ['pending', 'purchased', 'archived'],
       member_role: ['owner', 'viewer', 'editor', 'partner'],
       member_status: ['pending', 'accepted', 'declined', 'expired', 'cancelled'],
+      stock_status: ['in_stock', 'low', 'out'],
     },
   },
 } as const;

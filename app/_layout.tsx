@@ -1,4 +1,60 @@
-import { Stack } from 'expo-router';
+import { ErrorBoundaryProps, router, Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { GrocefyProvider } from '@/src/store';
-export default function Layout() { return <GrocefyProvider><StatusBar style="dark"/><Stack screenOptions={{ headerShown: false }}><Stack.Screen name="(tabs)"/><Stack.Screen name="groups" options={{ presentation: 'card' }}/><Stack.Screen name="list/[id]" options={{ presentation: 'card' }}/><Stack.Screen name="create-list" options={{ presentation: 'modal' }}/></Stack></GrocefyProvider>; }
+import React, { useEffect } from 'react';
+import { Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { registerDevice, useNotificationRouting } from '@/src/notifications';
+import { OfflineBanner } from '@/src/offline/OfflineBanner';
+import { OfflineProvider } from '@/src/offline/OfflineProvider';
+import { SessionProvider, useSession } from '@/src/session';
+import { Button, Loading, palette, styles } from '@/src/ui';
+import { features } from '@/src/features';
+import { setTimezone } from '@/src/services/settings';
+
+// Screens reachable while signed out. reset-password stays reachable after its email link signs the user in.
+const publicScreens = ['sign-in', 'sign-up', 'forgot-password', 'auth-callback', 'reset-password'];
+
+function AuthGate() {
+  const { status, settings } = useSession();
+  const pushOn = features.pushNotifications && settings?.push_notifications;
+  const { userId, refreshAccount } = useSession();
+  const timezoneMissing = status === 'signedIn' && !!settings && !settings.timezone;
+  useEffect(() => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timezoneMissing && userId && zone) setTimezone(userId, zone).then(refreshAccount).catch(() => undefined);
+  }, [timezoneMissing, userId, refreshAccount]);
+  useNotificationRouting(status === 'signedIn');
+  // Refresh this phone's push registration after sign-in, without prompting (the prompt is shown from Settings).
+  useEffect(() => { if (status === 'signedIn' && pushOn) registerDevice({ ask: false }).catch(() => undefined); }, [status, pushOn]);
+  const segments = useSegments() as string[];
+  const screen = segments[0] === '(auth)' ? segments[1] : undefined;
+  const onPublicScreen = !!screen && publicScreens.includes(screen);
+
+  useEffect(() => {
+    if (status === 'signedOut' && !onPublicScreen) router.replace('/sign-in');
+    if (status === 'signedIn' && onPublicScreen && screen !== 'reset-password' && screen !== 'auth-callback') router.replace('/');
+  }, [status, onPublicScreen, screen]);
+
+  if (status === 'unconfigured') return <View style={[styles.screen, { justifyContent: 'center', padding: 24 }]}><Text style={styles.title}>Grocefy is not configured</Text>
+    <Text style={[styles.subtitle, { lineHeight: 21 }]}>Copy .env.example to .env and set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY, then restart Expo.</Text></View>;
+  if (status === 'loading') return <View style={[styles.screen, { justifyContent: 'center' }]}><Loading/></View>;
+  return <View style={{ flex: 1 }}><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.cream } }}>
+    <Stack.Screen name="(auth)"/><Stack.Screen name="(tabs)"/>
+    <Stack.Screen name="create-list" options={{ presentation: 'modal' }}/>
+  </Stack>{status === 'signedIn' && <OfflineBanner/>}</View>;
+}
+
+/** Shown instead of a blank screen if a screen throws while rendering; the session is kept. */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return <View style={[styles.screen, { justifyContent: 'center', padding: 24, gap: 14 }]}>
+    <Text style={styles.title}>Something went wrong</Text>
+    <Text style={[styles.subtitle, { lineHeight: 21 }]}>This screen hit an unexpected problem. Your lists and purchases are safe.</Text>
+    {__DEV__ && <Text style={{ color: palette.red, fontSize: 12 }}>{error.message}</Text>}
+    <Button label="Try again" icon="refresh" onPress={retry}/>
+    <Button label="Go to my lists" variant="soft" onPress={() => router.replace('/')}/>
+  </View>;
+}
+
+export default function Layout() {
+  return <SafeAreaProvider><SessionProvider><OfflineProvider><StatusBar style="dark"/><AuthGate/></OfflineProvider></SessionProvider></SafeAreaProvider>;
+}
