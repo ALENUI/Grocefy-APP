@@ -3,13 +3,41 @@
     "name": "Grocefy",
     "slug": "grocefy",
     "version": "1.0.0",
-    "platforms": ["android", "ios"],
+    "platforms": [
+      "android",
+      "ios"
+    ],
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "grocefy",
-    "plugins": ["expo-router", "expo-asset", "expo-font", "expo-notifications"],
-    "experiments": { "typedRoutes": true },
-    "android": { "package": "com.grocefy.app" },
-    "ios": { "bundleIdentifier": "com.grocefy.app" }
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font",
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#F7F8F3"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "android": {
+      "package": "com.grocefy.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#22784B"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.grocefy.app"
+    },
+    "icon": "./assets/icon.png"
   }
 }
