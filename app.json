@@ -38,6 +38,13 @@
     "ios": {
       "bundleIdentifier": "com.grocefy.app"
     },
-    "icon": "./assets/icon.png"
+    "icon": "./assets/icon.png",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "bba1d05f-d595-4b16-982f-708e6c9969ef"
+      }
+    },
+    "owner": "alenui"
   }
 }
