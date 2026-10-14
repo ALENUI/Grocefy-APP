@@ -22,3 +22,7 @@ verify_jwt = false
 [functions.send-push]
 # Called by pg_cron with the shared worker secret, like send-emails.
 verify_jwt = false
+
+[functions.publish-release]
+# Called by the EAS build workflow with the x-release-secret header, not by app users.
+verify_jwt = false

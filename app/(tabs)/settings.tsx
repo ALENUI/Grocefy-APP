@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Switch, Text, View } from 'react-native';
+import { installedVersionLabel, updatesSupported, useAppUpdate } from '@/src/appUpdate';
 import { currencyLabel } from '@/src/currency';
 import { signOut } from '@/src/services/auth';
 import { friendlyError } from '@/src/services/errors';
@@ -16,6 +17,16 @@ export default function Settings() {
   const userId = useUserId();
   const { profile, settings, session, defaultCurrency, changeDefaultCurrency, refreshAccount } = useSession();
   const [busy, setBusy] = useState(false);
+  const update = useAppUpdate();
+  const [checking, setChecking] = useState(false);
+  const checkForUpdate = async () => {
+    setChecking(true);
+    const result = await update.check();
+    setChecking(false);
+    if (result === 'failed') Alert.alert('Could not check for updates', 'Check your connection and try again.');
+    else if (result) update.prompt();
+    else Alert.alert('You are up to date', `Grocefy ${installedVersionLabel} is the latest version.`);
+  };
   const { ops } = useOffline();
   // Unregister this phone first (while still signed in) so the next person using it gets no pushes for this account.
   const signOutNow = () => unregisterDevice().catch(() => undefined).then(signOut).catch((caught) => Alert.alert('Could not sign out', friendlyError(caught)));
@@ -57,6 +68,12 @@ export default function Settings() {
       <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, lineHeight: 19 }}>Purchases on lists you share, invitations, and monthly reports, on every phone you are signed in on.</Text></View>
       <Switch accessibilityLabel="Push notifications" value={settings?.push_notifications ?? true} disabled={busy || !settings} trackColor={{ true: palette.green }} onValueChange={togglePush}/></View>
     </Card>}
+    <Card><Text style={styles.label}>App version</Text>
+      <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, lineHeight: 19 }}>Grocefy {installedVersionLabel}{update.available ? ` · version ${update.available.version} (build ${update.available.build_number}) is available` : ''}</Text>
+      {updatesSupported && <View style={{ marginTop: 12 }}>{update.available
+        ? <Button label="Update now" icon="cloud-download-outline" onPress={update.prompt}/>
+        : <Button label="Check for updates" variant="soft" icon="refresh" loading={checking} onPress={checkForUpdate}/>}</View>}
+    </Card>
     {features.customCategories && <Button label="Manage categories" variant="soft" icon="pricetags-outline" onPress={() => router.push('/categories')}/>}
     <Button label="Sign out" variant="danger" icon="log-out-outline" onPress={confirmSignOut}/>
   </Screen>;

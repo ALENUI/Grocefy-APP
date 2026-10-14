@@ -116,6 +116,16 @@ supabase secrets set EXPO_ACCESS_TOKEN=<token>
 
 Push needs a physical phone and a development or production build (`eas build`). Without a project ID, Settings explains that push is not set up for that build. For local development, copy `supabase/functions/.env.example` to `supabase/functions/.env` (log providers: no emails or pushes leave the machine).
 
+7. In-app updates (Android APK). Each APK built on `main` is recorded in `app_releases`, and installed apps check it at launch and when reopened. When a newer build exists they show an "Update available" prompt whose **Update now** button opens the download, and Settings shows the installed version with a **Check for updates** button. To turn it on, deploy the function and set the same secret in Supabase and in the EAS `preview` environment:
+
+```bash
+supabase functions deploy publish-release
+supabase secrets set RELEASE_PUBLISH_SECRET=<long random string>
+eas env:create --environment preview --name RELEASE_PUBLISH_SECRET --value <same string> --visibility secret
+```
+
+Only builds made after this is set up are offered. The prompt only appears in installed APKs, not in Expo Go or development builds.
+
 The migrations also create the reference data (currency registry and default categories). After a schema change, regenerate the client types with `npm run db:types`.
 
 ### Local development data
