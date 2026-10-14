@@ -13,6 +13,8 @@ import { setTimezone } from '@/src/services/settings';
 
 // Screens reachable while signed out. reset-password stays reachable after its email link signs the user in.
 const publicScreens = ['sign-in', 'sign-up', 'forgot-password', 'auth-callback', 'reset-password'];
+// Every other route needs a signed-in user. A route missing here would render unprotected, so keep it in sync with app/.
+const protectedScreens = ['categories', 'group/[id]', 'groups', 'inbox', 'list/[id]', 'members', 'prices', 'product/[id]'];
 
 function AuthGate() {
   const { status, settings } = useSession();
@@ -38,9 +40,15 @@ function AuthGate() {
   if (status === 'unconfigured') return <View style={[styles.screen, { justifyContent: 'center', padding: 24 }]}><Text style={styles.title}>Grocefy is not configured</Text>
     <Text style={[styles.subtitle, { lineHeight: 21 }]}>Copy .env.example to .env and set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY, then restart Expo.</Text></View>;
   if (status === 'loading') return <View style={[styles.screen, { justifyContent: 'center' }]}><Loading/></View>;
+  // Screens behind sign-in are protected, so they never render without a user (they rely on useUserId). Signed out,
+  // the router falls back to the (auth) screens; signed in, those stay reachable for the email-link flows.
   return <View style={{ flex: 1 }}><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.cream } }}>
-    <Stack.Screen name="(auth)"/><Stack.Screen name="(tabs)"/>
-    <Stack.Screen name="create-list" options={{ presentation: 'modal' }}/>
+    <Stack.Protected guard={status === 'signedIn'}>
+      <Stack.Screen name="(tabs)"/>
+      <Stack.Screen name="create-list" options={{ presentation: 'modal' }}/>
+      {protectedScreens.map((name) => <Stack.Screen key={name} name={name}/>)}
+    </Stack.Protected>
+    <Stack.Screen name="(auth)"/>
   </Stack>{status === 'signedIn' && <OfflineBanner/>}</View>;
 }
 
