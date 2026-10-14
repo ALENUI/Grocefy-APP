@@ -2,6 +2,8 @@ import { ErrorBoundaryProps, router, Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { registerDevice, useNotificationRouting } from '@/src/notifications';
 import { OfflineBanner } from '@/src/offline/OfflineBanner';
@@ -64,5 +66,5 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 export default function Layout() {
-  return <SafeAreaProvider><SessionProvider><OfflineProvider><StatusBar style="dark"/><AuthGate/></OfflineProvider></SessionProvider></SafeAreaProvider>;
+  return <GestureHandlerRootView style={{ flex: 1 }}><KeyboardProvider><SafeAreaProvider><SessionProvider><OfflineProvider><StatusBar style="dark"/><AuthGate/></OfflineProvider></SessionProvider></SafeAreaProvider></KeyboardProvider></GestureHandlerRootView>;
 }
