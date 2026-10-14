@@ -1,0 +1,16 @@
+# Runs on Expo's servers (EAS Workflows): every push to main builds an installable Android APK.
+# Requires the GitHub repo to be connected to the Expo project (expo.dev → Project settings → GitHub).
+# The Supabase URL and public key come from the project's "preview" EAS environment variables.
+name: Android APK on main
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  build_android:
+    name: Build Android APK
+    type: build
+    params:
+      platform: android
+      profile: preview
