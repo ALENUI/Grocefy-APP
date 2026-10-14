@@ -146,3 +146,16 @@ test('push worker sends to every device, prunes unregistered ones, and isolates 
   await logPushProvider((line) => logged.push(line)).send([{ to: 'ExponentPushToken[secret]', title: 'Food', body: 'private', data: {} }]);
   assert.deepEqual(logged, ['[push:log] Food'], 'the log provider never records tokens or bodies');
 });
+
+const { parseRelease } = require('../supabase/functions/_shared/release.ts');
+
+test('app releases need a platform, positive build number, version, and https download', () => {
+  const valid = { platform: 'android', build_number: '12', version: ' 1.0.0 ', download_url: 'https://expo.dev/builds/abc', notes: '  fix: things  ', eas_build_id: 'abc' };
+  assert.deepEqual(parseRelease(valid), { platform: 'android', build_number: 12, version: '1.0.0', download_url: 'https://expo.dev/builds/abc', notes: 'fix: things', eas_build_id: 'abc' });
+  assert.equal(parseRelease({ ...valid, notes: '' }).notes, null);
+  assert.equal(parseRelease({ ...valid, platform: 'web' }), null);
+  assert.equal(parseRelease({ ...valid, build_number: 0 }), null);
+  assert.equal(parseRelease({ ...valid, build_number: '1.5' }), null);
+  assert.equal(parseRelease({ ...valid, version: ' ' }), null);
+  assert.equal(parseRelease({ ...valid, download_url: 'http://insecure.example/app.apk' }), null);
+});

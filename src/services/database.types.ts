@@ -3,6 +3,39 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      app_releases: {
+        Row: {
+          build_number: number;
+          created_at: string;
+          download_url: string;
+          eas_build_id: string | null;
+          id: string;
+          notes: string | null;
+          platform: string;
+          version: string;
+        };
+        Insert: {
+          build_number: number;
+          created_at?: string;
+          download_url: string;
+          eas_build_id?: string | null;
+          id?: string;
+          notes?: string | null;
+          platform: string;
+          version: string;
+        };
+        Update: {
+          build_number?: number;
+          created_at?: string;
+          download_url?: string;
+          eas_build_id?: string | null;
+          id?: string;
+          notes?: string | null;
+          platform?: string;
+          version?: string;
+        };
+        Relationships: [];
+      };
       activity_log: {
         Row: {
           action: Database['public']['Enums']['activity_action'];
