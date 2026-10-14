@@ -3,9 +3,11 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { formatCurrency, parseAmount } from '@/src/currency';
 import { features } from '@/src/features';
+import { ListCard } from '@/src/ListCard';
 import { friendlyError } from '@/src/services/errors';
 import { addHomeItem, archiveHomeItem, createHome, fetchHomeItems, fetchMonthSpending, HomeItem, markHomeItem, StockStatus, updateHomeItem } from '@/src/services/home';
-import { watchHome, watchInbox } from '@/src/services/realtime';
+import { fetchLists } from '@/src/services/lists';
+import { watchHome, watchInbox, watchLists } from '@/src/services/realtime';
 import { fetchInbox } from '@/src/services/sharing';
 import { useSession, useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
@@ -24,6 +26,9 @@ export default function Home() {
   const items = useAsync(async () => (home ? fetchHomeItems(home.id, home.currency_code) : []), [homeId, home?.currency_code], { cacheKey: `home-items:${homeId ?? 'none'}` });
   const spending = useAsync(async () => (home && features.monthlySpending ? fetchMonthSpending(home.id) : []), [homeId]);
   const inbox = useAsync(() => fetchInbox(userId, session?.user.email), [userId, session?.user.email]);
+  // Same lists (and offline cache) as the To-buy tab.
+  const lists = useAsync(async () => (homeId ? fetchLists({ groupId: homeId }) : []), [homeId], { cacheKey: homeId ? `lists:${homeId}` : undefined });
+  useLive(watchLists, lists.reload, []);
   useLive((onChange) => (homeId ? watchHome(homeId, onChange) : () => undefined), () => { items.reload(); spending.reload(); }, [homeId]);
   useLive((onChange) => watchInbox(userId, onChange), inbox.reload, [userId]);
   const [adding, setAdding] = useState(false);
@@ -39,18 +44,20 @@ export default function Home() {
   const all = items.data ?? [];
   const needed = all.filter((item) => item.status !== 'in_stock').sort((a, b) => (a.status === b.status ? 0 : a.status === 'out' ? -1 : 1));
   const stocked = all.filter((item) => item.status === 'in_stock');
+  // Lists with something still to buy; finished lists stay on the To-buy tab.
+  const toBuy = (lists.data ?? []).filter((list) => (list.totals?.purchased_count ?? 0) < (list.totals?.item_count ?? 0));
 
   const mark = async (item: HomeItem, status: StockStatus) => {
     if (item.status === status) return;
     setMarking(item.id); setNotice(undefined);
     try {
       const entry = await markHomeItem(item.id, status);
-      await items.reload();
+      await Promise.all([items.reload(), lists.reload()]);
       setNotice(entry ? { text: `${item.product?.name ?? 'Item'} is on your To-buy list${entry.budgeted_unit_price > 0 ? ` at ${formatCurrency(entry.budgeted_unit_price, home.currency_code)}` : ''}.`, listId: entry.list_id } : undefined);
     } catch (caught) { setNotice({ text: friendlyError(caught), error: true }); } finally { setMarking(undefined); }
   };
 
-  return <Screen refreshing={items.loading && !!items.data} onRefresh={() => { items.reload(); spending.reload(); inbox.reload(); }}>
+  return <Screen refreshing={items.loading && !!items.data} onRefresh={() => { items.reload(); spending.reload(); inbox.reload(); lists.reload(); }}>
     <Heading title={home.name} subtitle={`${home.memberCount} ${home.memberCount === 1 ? 'person' : 'people'}${canEdit ? '' : ' · view only'}`}
       action={<View style={{ flexDirection: 'row', gap: 8 }}>
         {bell}
@@ -68,6 +75,11 @@ export default function Home() {
       <Text style={{ color: notice.error ? palette.red : palette.ink, fontWeight: '700' }}>{notice.text}</Text>
       {notice.listId && <Text onPress={() => router.push(`/list/${notice.listId}`)} style={{ color: palette.green, fontWeight: '800', marginTop: 6 }}>Open To-buy list</Text>}
     </Card>}
+    {toBuy.length > 0 && <View style={{ gap: 8 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>TO BUY</Text>
+        <Text accessibilityRole="link" onPress={() => router.navigate('/lists')} style={{ color: palette.green, fontWeight: '800', fontSize: 13 }}>See all</Text></View>
+      <View style={{ gap: 11 }}>{toBuy.map((list) => <ListCard key={list.id} list={list} showGroup={false}/>)}</View>
+    </View>}
     {items.error ? <ErrorNotice error={items.error} onRetry={items.reload}/> : !items.data ? <Loading/> : all.length === 0
       ? <EmptyState title="What do you keep at home?" message="Add the things your household buys regularly, like rice, oil, soap, or toothpaste. Mark them when they run low and they go straight onto your To-buy list."
           action={canEdit ? <Button label="Add your first item" icon="add" onPress={() => setAdding(true)}/> : undefined}/>
