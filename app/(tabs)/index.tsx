@@ -16,6 +16,8 @@ import { useLive } from '@/src/useLive';
 import { Button, Card, CurrencyPicker, EmptyState, ErrorNotice, Field, Heading, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
 
 const statusLabel: Record<StockStatus, string> = { in_stock: 'In stock', low: 'Low', out: 'Finished' };
+// Home shows the first few To-buy lists; the rest are one tap away on the To-buy tab.
+const homeListLimit = 2;
 
 /** Home: what the household keeps, what is running low or finished, and this month's spending. */
 export default function Home() {
@@ -76,9 +78,9 @@ export default function Home() {
       {notice.listId && <Text onPress={() => router.push(`/list/${notice.listId}`)} style={{ color: palette.green, fontWeight: '800', marginTop: 6 }}>Open To-buy list</Text>}
     </Card>}
     {toBuy.length > 0 && <View style={{ gap: 8 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>TO BUY</Text>
-        <Text accessibilityRole="link" onPress={() => router.navigate('/lists')} style={{ color: palette.green, fontWeight: '800', fontSize: 13 }}>See all</Text></View>
-      <View style={{ gap: 11 }}>{toBuy.map((list) => <ListCard key={list.id} list={list} showGroup={false}/>)}</View>
+      <Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>TO BUY</Text>
+      <View style={{ gap: 11 }}>{toBuy.slice(0, homeListLimit).map((list) => <ListCard key={list.id} list={list} showGroup={false}/>)}</View>
+      {toBuy.length > homeListLimit && <Button label={`View ${toBuy.length - homeListLimit} more ${toBuy.length - homeListLimit === 1 ? 'list' : 'lists'}`} variant="soft" icon="chevron-forward" onPress={() => router.navigate('/lists')}/>}
     </View>}
     {items.error ? <ErrorNotice error={items.error} onRetry={items.reload}/> : !items.data ? <Loading/> : all.length === 0
       ? <EmptyState title="What do you keep at home?" message="Add the things your household buys regularly, like rice, oil, soap, or toothpaste. Mark them when they run low and they go straight onto your To-buy list."

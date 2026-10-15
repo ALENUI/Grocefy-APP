@@ -421,6 +421,7 @@ export type Database = {
           created_at: string;
           created_by: string;
           id: string;
+          is_bulk: boolean;
           list_id: string;
           notes: string | null;
           product_id: string;
@@ -437,6 +438,7 @@ export type Database = {
           created_at?: string;
           created_by: string;
           id?: string;
+          is_bulk?: boolean;
           list_id: string;
           notes?: string | null;
           product_id: string;
@@ -453,6 +455,7 @@ export type Database = {
           created_at?: string;
           created_by?: string;
           id?: string;
+          is_bulk?: boolean;
           list_id?: string;
           notes?: string | null;
           product_id?: string;

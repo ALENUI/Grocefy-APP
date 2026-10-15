@@ -3,7 +3,7 @@ import type { ItemChanges, ListItem } from '../services/lists';
 
 type OpBase = { id: string; createdAt: string; listId: string; label: string };
 export type QueuedOp = OpBase & (
-  | { kind: 'addItem'; itemId: string; productName: string; productId?: string; quantity: number; budgetedUnitPrice: number; categoryId: string | null; categoryName?: string | null }
+  | { kind: 'addItem'; itemId: string; productName: string; productId?: string; quantity: number; isBulk?: boolean; budgetedUnitPrice: number; categoryId: string | null; categoryName?: string | null }
   | { kind: 'updateItem'; itemId: string; changes: ItemChanges; categoryName?: string | null }
   | { kind: 'removeItem'; itemId: string }
   | { kind: 'purchase'; itemId: string; clientRef: string; actualAmount: number | null; purchasedAt: string }
@@ -24,7 +24,7 @@ export function applyQueue(items: ListItem[], ops: QueuedOp[], listId: string, n
     if (op.kind === 'addItem') {
       if (result.some((item) => item.id === op.itemId)) continue; // already synced and refetched
       result.push({
-        id: op.itemId, list_id: listId, product_id: op.productId ?? '', category_id: op.categoryId, quantity: op.quantity, unit: null,
+        id: op.itemId, list_id: listId, product_id: op.productId ?? '', category_id: op.categoryId, quantity: op.quantity, unit: null, is_bulk: op.isBulk ?? false,
         budgeted_unit_price: op.budgetedUnitPrice, budgeted_total: total(op.quantity, op.budgetedUnitPrice), status: 'pending', notes: null,
         created_by: '', created_at: op.createdAt, updated_at: op.createdAt, purchased_at: null,
         product: { id: op.productId ?? '', name: op.productName }, category: op.categoryId ? { id: op.categoryId, name: op.categoryName ?? '' } : null, pendingSync: true
@@ -39,7 +39,7 @@ export function applyQueue(items: ListItem[], ops: QueuedOp[], listId: string, n
         const price = op.changes.budgetedUnitPrice ?? item.budgeted_unit_price;
         const categoryId = op.changes.categoryId === undefined ? item.category_id : op.changes.categoryId;
         return {
-          ...item, quantity, budgeted_unit_price: price, budgeted_total: total(quantity, price), category_id: categoryId,
+          ...item, quantity, budgeted_unit_price: price, budgeted_total: total(quantity, price), category_id: categoryId, is_bulk: op.changes.isBulk ?? item.is_bulk,
           category: op.changes.categoryId === undefined ? item.category : categoryId ? { id: categoryId, name: op.categoryName ?? item.category?.name ?? '' } : null,
           pendingSync: true
         };

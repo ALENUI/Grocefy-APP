@@ -12,7 +12,7 @@ Grocefy helps a household keep track of the groceries and everyday items it keep
 ## Features
 
 - **Home inventory:** everything the household keeps, grouped into *Needs buying* and *In stock*, with the last price paid for each item.
-- **To-buy lists:** a shared list created with the home, plus any other lists you want (e.g. a weekly market trip). Each item shows its expected price and the list shows the expected total.
+- **To-buy lists:** a shared list created with the home, plus any other lists you want (e.g. a weekly market trip). Each item shows its expected price, whether it is bought per item or in bulk packs, and the list shows the expected total. Anything added to a To-buy list also appears in the home as *Finished*, and buying it puts it back *In stock*. Home shows the first two lists that still have items to buy.
 - **Buying and price memory:** tick an item as bought, pay the expected price or enter the actual one; the price is saved and reused. Purchases are recorded once even if the connection drops.
 - **Sharing with the people you live with:** invite them by username or email. **Members** can add items, mark what is running out, and buy; **View-only** people (for example children) can see everything without changing it. The person who created the home manages who is in it.
 - **Live updates and push notifications:** changes appear on everyone's phone without refreshing, and housemates are notified when something runs low or finishes, or is bought.
