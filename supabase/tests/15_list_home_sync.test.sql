@@ -20,7 +20,34 @@ select tests.assert((select status = 'out' and created_by = tests.id('editor') f
 select tests.login('partner');
 select public.purchase_list_item('40000000-0000-0000-0000-0000000000e1', 9000);
 reset role;
-select tests.assert((select status = 'in_stock' from public.home_items where product_id = '30000000-0000-0000-0000-0000000000e1'), 'buying a To-buy item restocks it at home');
+select tests.assert((select status = 'in_stock' and usual_quantity = 1 and is_bulk from public.home_items where product_id = '30000000-0000-0000-0000-0000000000e1'),
+  'buying a To-buy item puts it in the home as full, with the bulk quantity bought');
+
+-- Bought more than usual: the quantity bought becomes the full quantity, and the next To-buy entry uses it.
+select tests.login('editor');
+update public.list_items set quantity = 3 where id = '40000000-0000-0000-0000-000000000001';
+reset role;
+select tests.login('partner');
+select public.purchase_list_item('40000000-0000-0000-0000-000000000001', 75000);
+reset role;
+select tests.assert((select status = 'in_stock' and usual_quantity = 3 and not is_bulk from public.home_items where product_id = '30000000-0000-0000-0000-000000000001'),
+  'the quantity bought becomes the full quantity');
+select tests.login('grouppartner');
+select tests.assert((select quantity = 3 and not is_bulk from public.mark_home_item((select id from public.home_items where product_id = '30000000-0000-0000-0000-000000000001'), 'out')),
+  'running out again puts the full quantity on the To-buy list');
+select tests.assert((select quantity = 1 and is_bulk from public.mark_home_item((select id from public.home_items where product_id = '30000000-0000-0000-0000-0000000000e1'), 'low')),
+  'bulk items go back on the list as bulk');
+reset role;
+-- Back to full for the next steps.
+update public.home_items set status = 'in_stock' where product_id in ('30000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-0000000000e1');
+
+-- Bought something the home did not have (it was removed): it is added as full.
+delete from public.home_items where product_id = '30000000-0000-0000-0000-000000000002';
+select tests.login('partner');
+select public.purchase_list_item('40000000-0000-0000-0000-000000000002', 6000);
+reset role;
+select tests.assert((select status = 'in_stock' and usual_quantity = 2 from public.home_items where product_id = '30000000-0000-0000-0000-000000000002'),
+  'a purchase adds a missing item to the home as full');
 
 -- Adding it again marks the in-stock home item finished; a running-low item stays low.
 update public.home_items set status = 'low' where product_id = '30000000-0000-0000-0000-000000000001';

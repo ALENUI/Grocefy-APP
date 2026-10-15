@@ -18,15 +18,10 @@ import { applyQueue, DisplayItem } from '@/src/offline/queue';
 import { watchList } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
+import { priceUnit, QuantityBadge, quantityLabel, QuantityTypeChips } from '@/src/quantity';
 import { BackHeader, Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
 
 const parseQuantity = (input: string) => { const value = Number(input.replace(',', '.')); return Number.isFinite(value) && value > 0 ? value : null; };
-// Per item: "3 items" (or "3 kg" with a unit). Bulk: "2 bulk packs" (or "2 bulk bags").
-const quantityLabel = (item: Pick<ListItem, 'quantity' | 'unit' | 'is_bulk'>) => {
-  const count = Number(item.quantity);
-  return item.is_bulk ? `${count} bulk ${item.unit ?? (count === 1 ? 'pack' : 'packs')}` : `${count} ${item.unit ?? (count === 1 ? 'item' : 'items')}`;
-};
-const priceUnit = (isBulk: boolean) => (isBulk ? 'per pack' : 'each');
 
 export default function ListDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -115,17 +110,6 @@ export default function ListDetail() {
     <DuplicateSheet visible={duplicating} list={list} onClose={() => setDuplicating(false)}/>
     <ListSettingsSheet visible={configuring} list={list} categories={categories} isOwner={role === 'owner'} hasItems={items.length > 0} onClose={() => setConfiguring(false)} onChanged={state.reload}/>
   </Screen>;
-}
-
-function QuantityBadge({ isBulk }: { isBulk: boolean }) {
-  return <View style={{ backgroundColor: isBulk ? '#FDF1E4' : palette.pale, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
-    <Text style={{ color: isBulk ? palette.orange : palette.green, fontSize: 12, fontWeight: '800' }}>{isBulk ? 'Bulk' : 'Per item'}</Text></View>;
-}
-
-/** Whether the quantity counts single items or bulk packs (a carton, a bag, a crate). */
-function QuantityTypeChips({ isBulk, onChange }: { isBulk: boolean; onChange: (isBulk: boolean) => void }) {
-  return <View style={styles.field}><Text style={styles.label}>Buy as</Text><View style={{ flexDirection: 'row', gap: 8 }}>
-    <Chip label="Per item" selected={!isBulk} onPress={() => onChange(false)}/><Chip label="Bulk" selected={isBulk} onPress={() => onChange(true)}/></View></View>;
 }
 
 /** Horizontal category chips. `null` means "use the list's category". */
