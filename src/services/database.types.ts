@@ -276,6 +276,7 @@ export type Database = {
           created_by: string | null;
           group_id: string;
           id: string;
+          is_bulk: boolean;
           product_id: string;
           status: Database['public']['Enums']['stock_status'];
           unit: string | null;
@@ -290,6 +291,7 @@ export type Database = {
           created_by?: string | null;
           group_id: string;
           id?: string;
+          is_bulk?: boolean;
           product_id: string;
           status?: Database['public']['Enums']['stock_status'];
           unit?: string | null;
@@ -304,6 +306,7 @@ export type Database = {
           created_by?: string | null;
           group_id?: string;
           id?: string;
+          is_bulk?: boolean;
           product_id?: string;
           status?: Database['public']['Enums']['stock_status'];
           unit?: string | null;
@@ -421,6 +424,7 @@ export type Database = {
           created_at: string;
           created_by: string;
           id: string;
+          is_bulk: boolean;
           list_id: string;
           notes: string | null;
           product_id: string;
@@ -437,6 +441,7 @@ export type Database = {
           created_at?: string;
           created_by: string;
           id?: string;
+          is_bulk?: boolean;
           list_id: string;
           notes?: string | null;
           product_id: string;
@@ -453,6 +458,7 @@ export type Database = {
           created_at?: string;
           created_by?: string;
           id?: string;
+          is_bulk?: boolean;
           list_id?: string;
           notes?: string | null;
           product_id?: string;

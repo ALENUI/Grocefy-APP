@@ -4,6 +4,8 @@ begin;
 select tests.household(); -- House Shopping (owner; grouppartner is a member) with its Food list
 select tests.create_user('kid');
 insert into public.group_members (group_id, user_id, role) values ('10000000-0000-0000-0000-000000000001', tests.id('kid'), 'viewer');
+-- The fixture's To-buy items (Rice, Cooking Oil) put themselves in the home (see 15_list_home_sync); this test builds the inventory itself.
+delete from public.home_items;
 
 -- Creating a home gives it a To-buy list and makes it the current home.
 select tests.create_user('amara', 'USD');

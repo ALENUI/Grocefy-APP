@@ -65,7 +65,7 @@ const { applyQueue, processQueue } = require('../src/offline/queue.ts');
 const { toServiceError, isNetworkError } = require('../src/services/errors.ts');
 
 const serverItem = (id, name, status = 'pending') => ({
-  id, list_id: 'list', product_id: `p-${id}`, category_id: null, quantity: 1, unit: null, budgeted_unit_price: 100, budgeted_total: 100, status, notes: null,
+  id, list_id: 'list', product_id: `p-${id}`, category_id: null, quantity: 1, unit: null, is_bulk: false, budgeted_unit_price: 100, budgeted_total: 100, status, notes: null,
   created_by: 'u', created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', purchased_at: null, product: { id: `p-${id}`, name }, category: null
 });
 const op = (kind, fields) => ({ id: `op-${Math.random()}`, createdAt: '2026-10-04T10:00:00Z', listId: 'list', label: `${kind}`, kind, ...fields });
@@ -88,6 +88,15 @@ test('queued changes are shown on top of the saved list', () => {
   assert.equal(bread.budgeted_total, 1500);
   assert.equal(bread.status, 'purchased', 'a purchase queued after an offline add applies to it');
   assert.equal(bread.purchased_at, '2026-10-04T10:05:00Z');
+});
+
+test('offline adds and edits keep whether an item is counted in bulk', () => {
+  const items = applyQueue([serverItem('rice', 'Rice')], [
+    op('addItem', { itemId: 'sugar', productName: 'Sugar', quantity: 1, isBulk: true, budgetedUnitPrice: 9000, categoryId: null }),
+    op('addItem', { itemId: 'salt', productName: 'Salt', quantity: 1, budgetedUnitPrice: 200, categoryId: null }),
+    op('updateItem', { itemId: 'rice', changes: { isBulk: true } })
+  ], 'list');
+  assert.deepEqual(items.map((item) => [item.id, item.is_bulk]), [['rice', true], ['sugar', true], ['salt', false]]);
 });
 
 test('an offline add is not shown twice once the server has it', () => {
