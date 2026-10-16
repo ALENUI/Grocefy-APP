@@ -5,7 +5,7 @@ Grocefy helps a household keep track of the groceries and everyday items it keep
 ## How it works
 
 1. **Set up your home** and add the things you buy regularly (rice, oil, soap, toothpaste…), with how many you usually buy at a time.
-2. **Mark items** as *In stock*, *Running low*, or *Finished* as you use them. Low and finished items go onto the To-buy list automatically, priced at what you paid last time, and the people you live with get a notification.
+2. **Mark items** as *Full*, *Running low*, or *Finished* as you use them. Low and finished items go onto the To-buy list automatically, priced at what you paid last time, and Grocefy asks whether to keep the quantity bought last time or change it. The people you live with get a notification. Home items are grouped by category; anything added without one goes under *General*, and you can create a new category while adding an item.
 3. **At the market**, open the To-buy list, tick each item as you buy it, and enter the amount you paid (or confirm the expected price).
 4. The price is **remembered** against the item and it goes back *In stock*. Next time it runs low, the new price is suggested.
 
