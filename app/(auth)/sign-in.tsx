@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 import { signIn } from '@/src/services/auth';
 import { friendlyError } from '@/src/services/errors';
 import { Button, Card, Field, palette, Screen, styles } from '@/src/ui';
@@ -14,7 +14,9 @@ export default function SignIn() {
     try { await signIn(email, password); } // the auth gate navigates once the session changes
     catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
   };
-  return <Screen><View style={{ marginTop: 40, marginBottom: 10 }}><Text style={[styles.title, { fontSize: 34 }]}>Grocefy</Text><Text style={styles.subtitle}>Plan together, spend with confidence.</Text></View>
+  return <Screen><View style={{ marginTop: 40, marginBottom: 10 }}>
+    <Image source={require('../../assets/splash-icon.png')} accessibilityIgnoresInvertColors style={{ width: 72, height: 72, marginBottom: 14 }}/>
+    <Text style={[styles.title, { fontSize: 34 }]}>Grocefy</Text><Text style={styles.subtitle}>Plan together, spend with confidence.</Text></View>
     <Card><View style={{ gap: 14 }}>
       <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoComplete="email" hint="you@example.com"/>
       <Field label="Password" value={password} onChangeText={setPassword} secure autoCapitalize="none" autoComplete="password"/>

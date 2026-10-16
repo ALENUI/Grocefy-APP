@@ -124,7 +124,13 @@ supabase secrets set RELEASE_PUBLISH_SECRET=<long random string>
 eas env:create --environment preview --name RELEASE_PUBLISH_SECRET --value <same string> --visibility secret
 ```
 
-Only builds made after this is set up are offered. The prompt only appears in installed APKs, not in Expo Go or development builds.
+To have the app download and install updates itself (instead of opening the Expo page in the browser), also give the workflow an Expo access token, so it can look up each build's direct `.apk` link. Create a robot token at expo.dev (Account settings → Access tokens, with read access to the project), then:
+
+```bash
+eas env:create --environment preview --name EXPO_RELEASE_TOKEN --value <token> --visibility secret
+```
+
+Android still shows its own Install screen (no app can replace itself silently), and the first time it asks to allow Grocefy to install updates. Only builds made after this is set up are offered. The prompt only appears in installed APKs, not in Expo Go or development builds.
 
 The migrations also create the reference data (currency registry and default categories). After a schema change, regenerate the client types with `npm run db:types`.
 

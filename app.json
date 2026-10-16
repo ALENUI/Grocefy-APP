@@ -30,6 +30,9 @@
     },
     "android": {
       "package": "com.grocefy.app",
+      "permissions": [
+        "android.permission.REQUEST_INSTALL_PACKAGES"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#22784B"
