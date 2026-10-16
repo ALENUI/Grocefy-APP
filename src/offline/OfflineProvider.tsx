@@ -33,7 +33,7 @@ const problemsKey = (userId: string) => `grocefy:sync-problems:${userId}`;
 async function send(op: QueuedOp, userId: string): Promise<Outcome> {
   try {
     if (op.kind === 'addItem') {
-      await addItem(userId, { id: op.itemId, listId: op.listId, productName: op.productName, productId: op.productId, quantity: op.quantity, isBulk: op.isBulk, budgetedUnitPrice: op.budgetedUnitPrice, categoryId: op.categoryId });
+      await addItem(userId, { id: op.itemId, listId: op.listId, productName: op.productName, productId: op.productId, quantity: op.quantity, unit: op.unit ?? undefined, isBulk: op.isBulk, budgetedUnitPrice: op.budgetedUnitPrice, categoryId: op.categoryId });
     } else if (op.kind === 'updateItem') {
       await updateItem(op.itemId, op.changes);
     } else if (op.kind === 'removeItem') {

@@ -99,6 +99,15 @@ test('offline adds and edits keep whether an item is counted in bulk', () => {
   assert.deepEqual(items.map((item) => [item.id, item.is_bulk]), [['rice', true], ['sugar', true], ['salt', false]]);
 });
 
+test('offline adds and edits keep the unit of measurement', () => {
+  const items = applyQueue([serverItem('rice', 'Rice'), { ...serverItem('oil', 'Oil'), unit: 'bottle' }], [
+    op('addItem', { itemId: 'flour', productName: 'Flour', quantity: 2, unit: 'kg', budgetedUnitPrice: 800, categoryId: null }),
+    op('updateItem', { itemId: 'rice', changes: { unit: 'bag' } }),
+    op('updateItem', { itemId: 'oil', changes: { unit: null } })
+  ], 'list');
+  assert.deepEqual(items.map((item) => [item.id, item.unit]), [['rice', 'bag'], ['oil', null], ['flour', 'kg']]);
+});
+
 test('an offline add is not shown twice once the server has it', () => {
   const items = applyQueue([serverItem('new', 'Bread')], [op('addItem', { itemId: 'new', productName: 'Bread', quantity: 1, budgetedUnitPrice: 100, categoryId: null })], 'list');
   assert.equal(items.length, 1);
