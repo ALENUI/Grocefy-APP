@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Linking, Platform, Text, View } from 'react-native';
 import { AppRelease, fetchLatestRelease } from './services/releases';
@@ -18,6 +20,32 @@ const checkEveryMs = 30 * 60 * 1000;
 // "Later" hides the prompt for that build for a day; Settings still shows it.
 const snoozeMs = 24 * 60 * 60 * 1000;
 const snoozeKey = 'grocefy:update-snoozed';
+// Downloaded installers live in the cache as grocefy-<build>.apk and are deleted at the next launch.
+const apkPrefix = 'grocefy-';
+// A direct APK link is installed in the app; anything else (the Expo build page) opens in the browser.
+const isApkUrl = (url: string) => /\.apk(\?|$)/i.test(url);
+const FLAG_GRANT_READ_URI_PERMISSION = 1;
+
+/** Downloads the APK, reporting progress (0..1), then opens Android's installer for it. */
+async function downloadAndInstall(release: AppRelease, onProgress: (fraction: number) => void) {
+  const target = `${FileSystem.cacheDirectory}${apkPrefix}${release.build_number}.apk`;
+  await FileSystem.deleteAsync(target, { idempotent: true });
+  const task = FileSystem.createDownloadResumable(release.download_url, target, {}, ({ totalBytesWritten, totalBytesExpectedToWrite }) => {
+    if (totalBytesExpectedToWrite > 0) onProgress(totalBytesWritten / totalBytesExpectedToWrite);
+  });
+  const result = await task.downloadAsync();
+  if (!result || result.status !== 200) throw new Error(`Download failed (${result?.status ?? 'no response'})`);
+  // The installer reads the file through a content:// link this app grants it access to.
+  const contentUri = await FileSystem.getContentUriAsync(result.uri);
+  await IntentLauncher.startActivityAsync('android.intent.action.VIEW', { data: contentUri, type: 'application/vnd.android.package-archive', flags: FLAG_GRANT_READ_URI_PERMISSION });
+}
+
+async function deleteOldInstallers() {
+  if (!FileSystem.cacheDirectory) return;
+  const names = await FileSystem.readDirectoryAsync(FileSystem.cacheDirectory);
+  await Promise.all(names.filter((name) => name.startsWith(apkPrefix) && name.endsWith('.apk'))
+    .map((name) => FileSystem.deleteAsync(`${FileSystem.cacheDirectory}${name}`, { idempotent: true })));
+}
 
 /** The newer build found, null when this build is the latest, or 'failed' when the check could not run. */
 type CheckResult = AppRelease | null | 'failed';
@@ -37,6 +65,8 @@ async function isSnoozed(build: number) {
 export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   const [available, setAvailable] = useState<AppRelease | null>(null);
   const [open, setOpen] = useState(false);
+  // null when idle; 0..1 while the new version downloads.
+  const [progress, setProgress] = useState<number | null>(null);
   const lastCheck = useRef(0);
 
   const check = useCallback(async (): Promise<CheckResult> => {
@@ -58,6 +88,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
       if (newer && newer !== 'failed' && !(await isSnoozed(newer.build_number))) setOpen(true);
     };
     autoCheck();
+    deleteOldInstallers().catch(() => undefined);
     const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') autoCheck(); });
     return () => subscription.remove();
   }, [check]);
@@ -66,12 +97,23 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     setOpen(false);
     if (available) AsyncStorage.setItem(snoozeKey, JSON.stringify({ build: available.build_number, at: Date.now() })).catch(() => undefined);
   };
-  // Android downloads the APK in the browser, then asks to install it over this version (same signing key, data kept).
-  const install = () => {
+  const openInBrowser = (release: AppRelease) => Linking.openURL(release.download_url).catch(() => Alert.alert('Could not open the download', 'Check your connection and try again.'));
+  // The APK downloads inside the app and Android's installer opens on it; the user confirms with Install (Android
+  // never lets an app replace itself silently). It installs over this version: same signing key, data kept.
+  // Without a direct APK link (or if the download fails) the download page opens in the browser instead.
+  const install = async () => {
     if (!available) return;
-    setOpen(false);
-    Linking.openURL(available.download_url).catch(() => Alert.alert('Could not open the download', 'Check your connection and try again.'));
+    if (!isApkUrl(available.download_url)) { setOpen(false); openInBrowser(available); return; }
+    setProgress(0);
+    try {
+      await downloadAndInstall(available, setProgress);
+      setOpen(false);
+    } catch {
+      Alert.alert('Could not download the update', 'Check your connection and try again, or download it in your browser.', [
+        { text: 'Cancel', style: 'cancel' }, { text: 'Open in browser', onPress: () => { setOpen(false); openInBrowser(available); } }]);
+    } finally { setProgress(null); }
   };
+  const downloading = progress !== null;
 
   return <AppUpdateContext.Provider value={{ available, check, prompt: () => setOpen(true) }}>
     {children}
@@ -79,9 +121,12 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
       {available?.notes && <View style={{ backgroundColor: palette.pale, padding: 12, borderRadius: 11 }}>
         <Text style={{ color: palette.green, fontWeight: '800', marginBottom: 4 }}>{"What's new"}</Text>
         <Text style={{ color: palette.ink, lineHeight: 20 }}>{available.notes}</Text></View>}
-      <Text style={{ color: palette.muted, lineHeight: 20 }}>The new version downloads, then Android asks you to install it. Your lists and account stay as they are.</Text>
-      <Button label="Update now" icon="cloud-download-outline" onPress={install}/>
-      <Button label="Later" variant="soft" onPress={later}/>
+      <Text style={{ color: palette.muted, lineHeight: 20 }}>The new version downloads, then Android asks you to install it. Your lists and account stay as they are. The first time, Android may ask you to allow Grocefy to install updates.</Text>
+      {downloading && <View style={{ gap: 6 }}>
+        <View style={{ height: 8, backgroundColor: palette.pale, borderRadius: 4, overflow: 'hidden' }}><View style={{ height: 8, width: `${Math.round(progress * 100)}%`, backgroundColor: palette.green }}/></View>
+        <Text style={{ color: palette.muted, fontSize: 13 }}>Downloading… {Math.round(progress * 100)}%</Text></View>}
+      <Button label={downloading ? 'Downloading…' : 'Update now'} icon="cloud-download-outline" onPress={install} loading={downloading}/>
+      <Button label="Later" variant="soft" onPress={later} disabled={downloading}/>
     </Sheet>
   </AppUpdateContext.Provider>;
 }
