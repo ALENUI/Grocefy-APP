@@ -9,6 +9,8 @@ export type ListWithContext = ShoppingList & {
 };
 export type ListItem = Tables<'list_items'> & { product: Pick<Tables<'products'>, 'id' | 'name'> | null; category: Pick<Tables<'categories'>, 'id' | 'name'> | null };
 export type ListTotals = Views<'list_totals'>;
+/** Budget of the items still to buy (the whole budget minus what purchased items were budgeted at). */
+export const leftToBuy = (totals: ListTotals | null) => Math.max(0, (totals?.budgeted_total ?? 0) - (totals?.purchased_budgeted_total ?? 0));
 export type PriceSuggestion = {
   latestUnitPrice: number; latestCurrencyCode: string; latestPurchasedAt: string;
   /** Only set when a price exists in the requested currency; prices are never converted. */
@@ -21,7 +23,7 @@ export type CreateListInput = { ownerId: string; name: string; currencyCode: str
  * id: a client-generated id, so an offline add that is retried after a dropped connection is not duplicated.
  */
 export type AddItemInput = { id?: string; listId: string; productName: string; productId?: string; quantity?: number; unit?: string; isBulk?: boolean; budgetedUnitPrice: number; categoryId?: string | null; notes?: string };
-export type ItemChanges = { quantity?: number; budgetedUnitPrice?: number; categoryId?: string | null; isBulk?: boolean };
+export type ItemChanges = { quantity?: number; unit?: string | null; budgetedUnitPrice?: number; categoryId?: string | null; isBulk?: boolean };
 export type ListChanges = { name?: string; categoryId?: string | null; currencyCode?: string };
 
 const listSelect = '*, group:shopping_groups(id, name), category:categories(id, name)';
@@ -110,10 +112,11 @@ export async function addItem(userId: string, { id, listId, productName, product
     .select(itemSelect).single());
 }
 
-export async function updateItem(itemId: string, { quantity, budgetedUnitPrice, categoryId, isBulk }: ItemChanges): Promise<void> {
+export async function updateItem(itemId: string, { quantity, unit, budgetedUnitPrice, categoryId, isBulk }: ItemChanges): Promise<void> {
   unwrap(await getSupabaseClient().from('list_items').update({
     ...(quantity === undefined ? {} : { quantity }), ...(budgetedUnitPrice === undefined ? {} : { budgeted_unit_price: budgetedUnitPrice }), ...(categoryId === undefined ? {} : { category_id: categoryId }),
-    ...(isBulk === undefined ? {} : { is_bulk: isBulk })
+    ...(isBulk === undefined ? {} : { is_bulk: isBulk }),
+    ...(unit === undefined ? {} : { unit })
   }).eq('id', itemId).select('id').single());
 }
 

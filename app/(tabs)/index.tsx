@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 import { formatCurrency, parseAmount } from '@/src/currency';
 import { features } from '@/src/features';
 import { ListCard } from '@/src/ListCard';
-import { quantityLabel, QuantityTypeChips } from '@/src/quantity';
+import { priceUnit, quantityLabel, QuantityTypeChips, UnitField } from '@/src/quantity';
 import { friendlyError } from '@/src/services/errors';
 import { addHomeItem, archiveHomeItem, createHome, fetchHomeItems, fetchMonthSpending, HomeItem, markHomeItem, StockStatus, updateHomeItem } from '@/src/services/home';
 import { fetchLists } from '@/src/services/lists';
@@ -105,7 +105,7 @@ function ItemRow({ item, currencyCode, canEdit, busy, onMark, onEdit }: { item: 
       <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>{item.product?.name ?? 'Item'}</Text>
       <Text style={{ color: palette.muted, marginTop: 2, fontSize: 13 }}>
         {/* The full quantity is what was bought last time (or set by hand); it is also what goes on the To-buy list. */}
-        {item.status === 'in_stock' ? `Full: ${quantityLabel({ quantity: item.usual_quantity, unit: item.unit, is_bulk: item.is_bulk })}` : `Buy ${quantityLabel({ quantity: item.usual_quantity, unit: item.unit, is_bulk: item.is_bulk })}`} · {item.lastPrice !== null ? `last paid ${formatCurrency(item.lastPrice, currencyCode)} ${item.is_bulk ? 'per pack' : 'each'}` : 'no price yet'}
+        {item.status === 'in_stock' ? `Full: ${quantityLabel({ quantity: item.usual_quantity, unit: item.unit, is_bulk: item.is_bulk })}` : `Buy ${quantityLabel({ quantity: item.usual_quantity, unit: item.unit, is_bulk: item.is_bulk })}`} · {item.lastPrice !== null ? `last paid ${formatCurrency(item.lastPrice, currencyCode)} ${priceUnit(item.is_bulk, item.unit)}` : 'no price yet'}
       </Text>
     </Pressable>
     <View style={{ flexDirection: 'row', gap: 6 }} accessibilityRole="radiogroup">
@@ -144,19 +144,20 @@ function CreateHome({ onCreated }: { onCreated: () => void }) {
 }
 
 function AddItemSheet({ visible, homeId, userId, onClose, onAdded }: { visible: boolean; homeId: string; userId: string; onClose: () => void; onAdded: () => void }) {
-  const [name, setName] = useState(''); const [quantity, setQuantity] = useState('1'); const [isBulk, setIsBulk] = useState(false);
+  const [name, setName] = useState(''); const [quantity, setQuantity] = useState('1'); const [isBulk, setIsBulk] = useState(false); const [unit, setUnit] = useState('');
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
-  useEffect(() => { if (visible) { setName(''); setQuantity('1'); setIsBulk(false); setError(undefined); } }, [visible]);
+  useEffect(() => { if (visible) { setName(''); setQuantity('1'); setIsBulk(false); setUnit(''); setError(undefined); } }, [visible]);
   const add = async () => {
     const count = parseAmount(quantity.replace(',', '.'), 'USD');
     if (!name.trim()) return setError('Enter what you keep at home, e.g. Rice.');
     if (count === null || count <= 0) return setError('Enter how many make it full.');
     setBusy(true); setError(undefined);
-    try { await addHomeItem(userId, homeId, name.trim(), { usualQuantity: count, isBulk }); onAdded(); onClose(); } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
+    try { await addHomeItem(userId, homeId, name.trim(), { usualQuantity: count, unit: unit.trim() || undefined, isBulk }); onAdded(); onClose(); } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
   };
   return <Sheet visible={visible} title="Add to your home" subtitle="Something your household buys regularly." onClose={onClose}>
     <Field label="Item" value={name} onChangeText={setName} hint="e.g. Rice"/>
     <Field label="Full quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" note="How many you buy to fill up, e.g. 1 bag or 4 bars. Updated each time you buy it."/>
+    <UnitField value={unit} onChange={setUnit}/>
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Add item" onPress={add} loading={busy}/>
@@ -174,10 +175,8 @@ function EditItemSheet({ item, onClose, onChanged }: { item: HomeItem | null; on
     run(() => updateHomeItem(item.id, { usualQuantity: count, unit: unit.trim() || null, isBulk }));
   };
   return <Sheet visible={!!item} title={item?.product?.name ?? 'Item'} onClose={onClose}>
-    <View style={{ flexDirection: 'row', gap: 10 }}>
-      <View style={{ width: 110 }}><Field label="Full quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/></View>
-      <View style={{ flex: 1 }}><Field label="Unit (optional)" value={unit} onChangeText={setUnit} hint="e.g. bag, bottle, kg" autoCapitalize="none"/></View>
-    </View>
+    <Field label="Full quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/>
+    <UnitField value={unit} onChange={setUnit}/>
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Save" onPress={save} loading={busy}/>

@@ -3,10 +3,10 @@ import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { formatCurrency } from './currency';
-import { ListWithContext } from './services/lists';
+import { leftToBuy, ListWithContext } from './services/lists';
 import { Card, palette } from './ui';
 
-/** Summary card for a shopping list: name, group/category/currency, budget, and purchase progress. */
+/** Summary card for a shopping list: name, group/category/currency, amount left to buy, budget, and purchase progress. */
 export function ListCard({ list, showGroup = true }: { list: ListWithContext; showGroup?: boolean }) {
   const purchased = list.totals?.purchased_count ?? 0;
   const total = list.totals?.item_count ?? 0;
@@ -18,7 +18,8 @@ export function ListCard({ list, showGroup = true }: { list: ListWithContext; sh
       <Text style={{ color: palette.muted, marginTop: 10 }}>{[showGroup ? list.group?.name ?? 'No group' : undefined, list.category?.name, list.currency_code].filter(Boolean).join(' · ')}</Text></View>
       <Ionicons name="chevron-forward" color="#A3ADA6" size={20}/></View>
     <View style={{ marginTop: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-      <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 18 }}>{formatCurrency(list.totals?.budgeted_total ?? 0, list.currency_code)}</Text>
+      <View><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 18 }}>{formatCurrency(leftToBuy(list.totals), list.currency_code)}</Text>
+        <Text style={{ color: palette.muted, fontSize: 12, marginTop: 2 }}>{purchased < total ? 'to buy' : 'all bought'} · budget {formatCurrency(list.totals?.budgeted_total ?? 0, list.currency_code)}</Text></View>
       <Text style={{ color: palette.muted }}>{purchased}/{total} purchased</Text></View>
     {total > 0 && <View style={{ height: 6, backgroundColor: palette.pale, borderRadius: 3, marginTop: 10, overflow: 'hidden' }}><View style={{ height: 6, width: `${Math.round((purchased / total) * 100)}%`, backgroundColor: palette.green }}/></View>}
   </Card></Pressable>;

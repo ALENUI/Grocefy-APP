@@ -18,7 +18,7 @@ import { applyQueue, DisplayItem } from '@/src/offline/queue';
 import { watchList } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
-import { priceUnit, QuantityBadge, quantityLabel, QuantityTypeChips } from '@/src/quantity';
+import { priceUnit, QuantityBadge, quantityLabel, QuantityTypeChips, UnitField } from '@/src/quantity';
 import { BackHeader, Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
 
 const parseQuantity = (input: string) => { const value = Number(input.replace(',', '.')); return Number.isFinite(value) && value > 0 ? value : null; };
@@ -33,7 +33,7 @@ export default function ListDetail() {
   // Collaborators' changes (new items, purchases, budget edits, role changes) appear without refreshing.
   useLive((onChange) => watchList(id, onChange), state.reload, [id]);
   // Changes made offline are shown immediately and replaced by server state once they sync.
-  const { ops, syncedVersion } = useOffline();
+  const { ops, syncedVersion, submit } = useOffline();
   const { reload } = state;
   useEffect(() => { if (syncedVersion) reload(); }, [syncedVersion, reload]);
   const [adding, setAdding] = useState(false);
@@ -54,6 +54,8 @@ export default function ListDetail() {
   const pending = items.filter((item) => item.status === 'pending');
   const purchased = items.filter((item) => item.status === 'purchased');
   const saved = (totals?.purchased_budgeted_total ?? 0) - (totals?.purchased_total ?? 0);
+  // What is still to buy, from the items on screen (so changes made offline count straight away).
+  const toBuyTotal = pending.reduce((sum, item) => sum + (item.budgeted_total ?? 0), 0);
   // Group what is left to buy by category, like aisles in a store. Items without a category use the list's.
   const sections = pending.reduce<{ name: string; items: DisplayItem[] }[]>((all, item) => {
     const name = features.customCategories ? item.category?.name ?? list.category?.name ?? 'Uncategorized' : 'To buy';
@@ -61,6 +63,12 @@ export default function ListDetail() {
     if (section) section.items.push(item); else all.push({ name, items: [item] });
     return all;
   }, []);
+
+  const confirmRemove = (item: DisplayItem) => Alert.alert(`Remove ${item.product?.name ?? 'this item'}?`, 'It is taken off this list. Your home inventory stays as it is.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Remove', style: 'destructive', onPress: () => submit({ kind: 'removeItem', listId: list.id, label: `Remove ${item.product?.name ?? 'item'}`, itemId: item.id }, () => removeItem(item.id))
+      .then(state.reload).catch((caught) => Alert.alert('Could not remove', friendlyError(caught))) }
+  ]);
 
   const confirmArchive = () => Alert.alert('Archive list?', 'The list is hidden for everyone. Its purchase history and reports are kept.', [
     { text: 'Cancel', style: 'cancel' },
@@ -76,9 +84,9 @@ export default function ListDetail() {
     {!!state.error && <ErrorNotice error={state.error} onRetry={state.reload}/>}
     {state.stale && <Text style={{ color: palette.muted }}>Offline · showing this list as saved {state.savedAt ? new Date(state.savedAt).toLocaleString() : 'earlier'}. Changes you make will sync later.</Text>}
     <Card style={{ backgroundColor: palette.pale }}>
-      <Text style={{ color: palette.green, fontWeight: '800', fontSize: 12 }}>LIST BUDGET · {code}</Text>
-      <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 26, marginTop: 4 }}>{formatCurrency(totals?.budgeted_total ?? 0, code)}</Text>
-      <Text style={{ color: palette.muted, marginTop: 5 }}>Paid {formatCurrency(totals?.purchased_total ?? 0, code)} · {totals?.purchased_count ?? 0}/{totals?.item_count ?? 0} items</Text>
+      <Text style={{ color: palette.green, fontWeight: '800', fontSize: 12 }}>TOTAL TO BUY · {code}</Text>
+      <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 26, marginTop: 4 }}>{formatCurrency(toBuyTotal, code)}</Text>
+      <Text style={{ color: palette.muted, marginTop: 5 }}>{pending.length} {pending.length === 1 ? 'item' : 'items'} left · List budget {formatCurrency(totals?.budgeted_total ?? 0, code)} · Paid {formatCurrency(totals?.purchased_total ?? 0, code)}</Text>
       {(totals?.purchased_count ?? 0) > 0 && <Text style={{ color: saved >= 0 ? palette.green : palette.red, marginTop: 4, fontWeight: '700' }}>{saved >= 0 ? `Saved ${formatCurrency(saved, code)}` : `Over budget by ${formatCurrency(-saved, code)}`} on purchased items</Text>}
       {pendingChanges > 0 && <Text style={{ color: palette.muted, marginTop: 6, fontSize: 12 }}>Totals update after {pendingChanges} {pendingChanges === 1 ? 'change syncs' : 'changes sync'}.</Text>}
     </Card>
@@ -90,7 +98,8 @@ export default function ListDetail() {
       {section.items.map((item) => <Card key={item.id}><View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
         <Pressable disabled={!canEdit} onPress={() => setEditing(item)} style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><Text style={{ color: palette.ink, fontSize: 16, fontWeight: '800', flexShrink: 1 }}>{item.product?.name ?? 'Item'}</Text><QuantityBadge isBulk={item.is_bulk}/></View>
-          <Text style={{ color: palette.muted, marginTop: 5 }}>{quantityLabel(item)} × {formatCurrency(item.budgeted_unit_price, code)} {priceUnit(item.is_bulk)} = {formatCurrency(item.budgeted_total ?? 0, code)}{item.pendingSync ? ' · waiting to sync' : ''}</Text></Pressable>
+          <Text style={{ color: palette.muted, marginTop: 5 }}>{quantityLabel(item)} × {formatCurrency(item.budgeted_unit_price, code)} {priceUnit(item.is_bulk, item.unit)} = {formatCurrency(item.budgeted_total ?? 0, code)}{item.pendingSync ? ' · waiting to sync' : ''}</Text></Pressable>
+        {canEdit && <Pressable accessibilityLabel={`Remove ${item.product?.name}`} hitSlop={6} onPress={() => confirmRemove(item)} style={{ backgroundColor: palette.redPale, padding: 12, borderRadius: 12 }}><Ionicons name="trash-outline" color={palette.red} size={20}/></Pressable>}
         {canPurchase && <Pressable accessibilityLabel={`Purchase ${item.product?.name}`} onPress={() => setBuying(item)} style={{ backgroundColor: palette.pale, padding: 12, borderRadius: 12 }}><Ionicons name="checkmark" color={palette.green} size={22}/></Pressable>}
       </View></Card>)}
     </View>)}
@@ -127,11 +136,11 @@ function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: {
   const currencyCode = list.currency_code;
   const { submit, newId } = useOffline();
   const [name, setName] = useState(''); const [productId, setProductId] = useState<string>(); const [quantity, setQuantity] = useState('1'); const [price, setPrice] = useState('');
-  const [categoryId, setCategoryId] = useState<string | null>(null); const [isBulk, setIsBulk] = useState(false);
+  const [categoryId, setCategoryId] = useState<string | null>(null); const [isBulk, setIsBulk] = useState(false); const [unit, setUnit] = useState('');
   const [matches, setMatches] = useState<{ id: string; name: string }[]>([]);
   const [suggestion, setSuggestion] = useState<PriceSuggestion | null>(null);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
-  useEffect(() => { if (!visible) { setName(''); setProductId(undefined); setQuantity('1'); setPrice(''); setCategoryId(null); setIsBulk(false); setMatches([]); setSuggestion(null); setError(undefined); } }, [visible]);
+  useEffect(() => { if (!visible) { setName(''); setProductId(undefined); setQuantity('1'); setPrice(''); setCategoryId(null); setIsBulk(false); setUnit(''); setMatches([]); setSuggestion(null); setError(undefined); } }, [visible]);
   // Product suggestions while typing; hidden once a suggestion is chosen.
   useEffect(() => {
     if (productId || name.trim().length < 2) { setMatches([]); return; }
@@ -162,10 +171,11 @@ function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: {
     setBusy(true); setError(undefined);
     const itemId = newId();
     const productName = name.trim();
+    const unitName = unit.trim() || null;
     try {
-      await submit({ kind: 'addItem', listId: list.id, label: `Add ${productName}`, itemId, productName, productId, quantity: count, isBulk, budgetedUnitPrice: amount, categoryId,
+      await submit({ kind: 'addItem', listId: list.id, label: `Add ${productName}`, itemId, productName, productId, quantity: count, unit: unitName, isBulk, budgetedUnitPrice: amount, categoryId,
         categoryName: categories.find((category) => category.id === categoryId)?.name ?? null },
-      () => addItem(userId, { id: itemId, listId: list.id, productName, productId, quantity: count, isBulk, budgetedUnitPrice: amount, categoryId }));
+      () => addItem(userId, { id: itemId, listId: list.id, productName, productId, quantity: count, unit: unitName ?? undefined, isBulk, budgetedUnitPrice: amount, categoryId }));
       onAdded(); onClose();
     } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
   };
@@ -181,8 +191,9 @@ function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: {
           <Text style={{ color: palette.muted, marginTop: 4 }}>This list uses {currencyCode}. Enter a budget in {currencyCode}; Grocefy does not convert currencies.</Text></Card>)}
     <View style={{ flexDirection: 'row', gap: 10 }}>
       <View style={{ width: 96 }}><Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/></View>
-      <View style={{ flex: 1 }}><Field label={isBulk ? 'Price per pack' : 'Price per item'} prefix={currencyCode} value={price} onChangeText={setPrice} keyboardType="decimal-pad" hint="0"/></View>
+      <View style={{ flex: 1 }}><Field label={`Price ${priceUnit(isBulk, unit.trim())}`} prefix={currencyCode} value={price} onChangeText={setPrice} keyboardType="decimal-pad" hint="0"/></View>
     </View>
+    <UnitField value={unit} onChange={setUnit}/>
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
     {features.customCategories && <CategoryChips categories={categories} value={categoryId} onChange={setCategoryId} defaultLabel={list.category ? `Same as list (${list.category.name})` : 'None'}/>}
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
@@ -193,14 +204,14 @@ function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: {
 function EditItemSheet({ item, list, categories, onClose, onChanged }: { item: ListItem | null; list: ListWithContext; categories: Category[]; onClose: () => void; onChanged: () => void }) {
   const currencyCode = list.currency_code;
   const { submit } = useOffline();
-  const [quantity, setQuantity] = useState(''); const [price, setPrice] = useState(''); const [categoryId, setCategoryId] = useState<string | null>(null); const [isBulk, setIsBulk] = useState(false);
+  const [quantity, setQuantity] = useState(''); const [price, setPrice] = useState(''); const [categoryId, setCategoryId] = useState<string | null>(null); const [isBulk, setIsBulk] = useState(false); const [unit, setUnit] = useState('');
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
-  useEffect(() => { if (item) { setQuantity(String(Number(item.quantity))); setPrice(amountInputValue(item.budgeted_unit_price, currencyCode)); setCategoryId(item.category_id); setIsBulk(item.is_bulk); setError(undefined); } }, [item, currencyCode]);
+  useEffect(() => { if (item) { setQuantity(String(Number(item.quantity))); setPrice(amountInputValue(item.budgeted_unit_price, currencyCode)); setCategoryId(item.category_id); setIsBulk(item.is_bulk); setUnit(item.unit ?? ''); setError(undefined); } }, [item, currencyCode]);
   const run = async (action: () => Promise<void>) => { setBusy(true); setError(undefined); try { await action(); onChanged(); onClose(); } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); } };
   const save = () => {
     const amount = parseAmount(price, currencyCode); const count = parseQuantity(quantity);
     if (!item || count === null || amount === null) return setError(`Enter a quantity and a valid price in ${currencyCode}.`);
-    const changes = { quantity: count, budgetedUnitPrice: amount, categoryId, isBulk };
+    const changes = { quantity: count, unit: unit.trim() || null, budgetedUnitPrice: amount, categoryId, isBulk };
     const categoryName = categories.find((category) => category.id === categoryId)?.name ?? null;
     run(async () => { await submit({ kind: 'updateItem', listId: list.id, label: `Edit ${item.product?.name ?? 'item'}`, itemId: item.id, changes, categoryName }, () => updateItem(item.id, changes)); });
   };
@@ -209,14 +220,16 @@ function EditItemSheet({ item, list, categories, onClose, onChanged }: { item: L
   return <Sheet visible={!!item} title={item?.product?.name ?? 'Item'} subtitle="Edit item" onClose={onClose}>
     <View style={{ flexDirection: 'row', gap: 10 }}>
       <View style={{ width: 96 }}><Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/></View>
-      <View style={{ flex: 1 }}><Field label={isBulk ? 'Price per pack' : 'Price per item'} prefix={currencyCode} value={price} onChangeText={setPrice} keyboardType="decimal-pad"/></View>
+      <View style={{ flex: 1 }}><Field label={`Price ${priceUnit(isBulk, unit.trim())}`} prefix={currencyCode} value={price} onChangeText={setPrice} keyboardType="decimal-pad"/></View>
     </View>
+    <UnitField value={unit} onChange={setUnit}/>
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
     {features.customCategories && <CategoryChips categories={choices} value={categoryId} onChange={setCategoryId} defaultLabel={list.category ? `Same as list (${list.category.name})` : 'None'}/>}
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Save" onPress={save} loading={busy}/>
     {features.priceInsights && item?.product && <Button label="Price history" variant="soft" icon="trending-up-outline" onPress={() => { const productId = item.product?.id; onClose(); if (productId) router.push(`/product/${productId}`); }}/>}
-    <Button label="Remove from list" variant="danger" icon="trash-outline" disabled={busy} onPress={() => item && run(async () => { await submit({ kind: 'removeItem', listId: list.id, label: `Remove ${item.product?.name ?? 'item'}`, itemId: item.id }, () => removeItem(item.id)); })}/>
+    <Button label="Remove from list" variant="danger" icon="trash-outline" disabled={busy} onPress={() => item && Alert.alert(`Remove ${item.product?.name ?? 'this item'}?`, 'It is taken off this list. Your home inventory stays as it is.', [{ text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => run(async () => { await submit({ kind: 'removeItem', listId: list.id, label: `Remove ${item.product?.name ?? 'item'}`, itemId: item.id }, () => removeItem(item.id)); }) }])}/>
   </Sheet>;
 }
 
