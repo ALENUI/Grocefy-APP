@@ -4,12 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { amountInputValue, formatCurrency, parseAmount } from '@/src/currency';
 import { ActivityFeed } from '@/src/ActivityFeed';
-import { fetchActivity } from '@/src/services/activity';
-import { Category, fetchCategories } from '@/src/services/categories';
+import { Category } from '@/src/services/categories';
 import { features } from '@/src/features';
 import { friendlyError } from '@/src/services/errors';
 import {
-  addItem, archiveList, duplicateList, fetchList, fetchListItems, fetchListRole, findProduct, getPriceSuggestion, ListItem, ListWithContext, PriceSuggestion, removeItem, searchProducts, updateItem, updateList
+  addItem, archiveList, duplicateList, findProduct, getPriceSuggestion, ListItem, ListWithContext, PriceSuggestion, removeItem, searchProducts, updateItem, updateList
 } from '@/src/services/lists';
 import { purchaseListItem } from '@/src/services/purchases';
 import { useUserId } from '@/src/session';
@@ -18,6 +17,7 @@ import { applyQueue, DisplayItem } from '@/src/offline/queue';
 import { watchList } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
+import { listDetailKey, loadListDetail } from '@/src/listDetail';
 import { priceUnit, QuantityBadge, quantityLabel, QuantityTypeChips, UnitField } from '@/src/quantity';
 import { BackHeader, Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
 
@@ -26,10 +26,7 @@ const parseQuantity = (input: string) => { const value = Number(input.replace(',
 export default function ListDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useUserId();
-  const state = useAsync(async () => {
-    const [list, items, role, categories, activity] = await Promise.all([fetchList(id), fetchListItems(id), fetchListRole(id), fetchCategories(userId), fetchActivity({ listId: id })]);
-    return { list, items, role, categories, activity };
-  }, [id, userId], { cacheKey: `list:${id}` });
+  const state = useAsync(() => loadListDetail(id, userId), [id, userId], { cacheKey: listDetailKey(id) });
   // Collaborators' changes (new items, purchases, budget edits, role changes) appear without refreshing.
   useLive((onChange) => watchList(id, onChange), state.reload, [id]);
   // Changes made offline are shown immediately and replaced by server state once they sync.

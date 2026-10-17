@@ -15,7 +15,7 @@ import { setCurrentHome } from '@/src/services/home';
 export default function Inbox() {
   const { session, settings, refreshAccount } = useSession();
   const userId = useUserId();
-  const state = useAsync(() => fetchInbox(userId, session?.user.email), [userId, session?.user.email]);
+  const state = useAsync(() => fetchInbox(userId, session?.user.email), [userId, session?.user.email], { cacheKey: 'inbox' });
   useLive((onChange) => watchInbox(userId, onChange), state.reload, [userId]);
   const [answering, setAnswering] = useState<string>();
   // Offer push once, until the system permission has been answered either way.

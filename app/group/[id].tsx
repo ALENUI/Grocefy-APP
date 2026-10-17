@@ -21,7 +21,7 @@ function GroupDetail() {
   const state = useAsync(async () => {
     const [group, lists, activity] = await Promise.all([fetchGroup(userId, id), fetchLists({ groupId: id }), fetchActivity({ groupId: id })]);
     return { group, lists, activity };
-  }, [userId, id]);
+  }, [userId, id], { cacheKey: `group:${id}` });
   useLive((onChange) => watchGroup(id, onChange), state.reload, [id]);
 
   if (!state.data) return <Screen><BackHeader title="Group"/>{state.error ? <ErrorNotice error={state.error} onRetry={state.reload}/> : <Loading/>}</Screen>;

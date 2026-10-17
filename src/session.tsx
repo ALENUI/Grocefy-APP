@@ -1,6 +1,8 @@
-import { Session } from '@supabase/supabase-js';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isAuthRetryableFetchError, Session } from '@supabase/supabase-js';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { setCurrencyRegistry } from './currency';
+import { peekCache, preloadCache, writeCache } from './offline/cache';
 import { fetchCurrencies, fetchProfile, fetchSettings, Profile, setDefaultCurrency, UserSettings } from './services/settings';
 import { getSupabaseClient, isSupabaseConfigured } from './services/supabase';
 
@@ -17,6 +19,25 @@ type SessionContext = {
 };
 
 const Context = createContext<SessionContext | undefined>(undefined);
+const currenciesKey = 'grocefy:currencies';
+type CurrencyRows = Awaited<ReturnType<typeof fetchCurrencies>>;
+const applyCurrencies = (rows: CurrencyRows) => setCurrencyRegistry(rows.map((row) => ({ code: row.code, name: row.name, symbol: row.symbol, decimalDigits: row.decimal_digits })));
+
+/**
+ * The signed-in session, also when the app opens offline with an expired access token: the refresh then fails only
+ * because the network is down, so the stored session is used (screens show saved data) until the client refreshes it
+ * once the connection returns. A refresh the server refuses still signs the user out.
+ */
+async function loadSession(): Promise<Session | null> {
+  const client = getSupabaseClient();
+  const { data, error } = await client.auth.getSession();
+  if (data.session || !error || !isAuthRetryableFetchError(error)) return data.session;
+  try {
+    const raw = await AsyncStorage.getItem((client.auth as unknown as { storageKey: string }).storageKey);
+    const stored = raw ? JSON.parse(raw) as Session : null;
+    return stored?.user?.id && stored.refresh_token ? stored : null;
+  } catch { return null; }
+}
 
 /** Owns the auth session, the signed-in user's profile and settings, and the server currency registry. */
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -26,13 +47,28 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const userId = session?.user.id ?? null;
+  const adoptedUser = useRef<string | null>(null);
 
   useEffect(() => {
     if (!configured) return;
     const client = getSupabaseClient();
-    fetchCurrencies().then((rows) => setCurrencyRegistry(rows.map((row) => ({ code: row.code, name: row.name, symbol: row.symbol, decimalDigits: row.decimal_digits })))).catch(() => undefined);
-    client.auth.getSession().then(({ data }) => setSession(data.session)).finally(() => setInitialized(true));
-    const { data: subscription } = client.auth.onAuthStateChange((_event, next) => setSession(next));
+    // Saved currencies first (amounts format correctly offline), then the server's.
+    AsyncStorage.getItem(currenciesKey).then((raw) => { if (raw) applyCurrencies(JSON.parse(raw)); }).catch(() => undefined);
+    fetchCurrencies().then((rows) => { applyCurrencies(rows); AsyncStorage.setItem(currenciesKey, JSON.stringify(rows)).catch(() => undefined); }).catch(() => undefined);
+    // A newly signed-in user's saved data is loaded into memory before screens render, so they open instantly.
+    const adopt = async (next: Session | null) => {
+      const nextUser = next?.user.id ?? null;
+      if (nextUser && nextUser !== adoptedUser.current) {
+        await preloadCache(nextUser);
+        const account = peekCache<{ profile: Profile; settings: UserSettings }>('account');
+        if (account) { setProfile(account.value.profile); setSettings(account.value.settings); }
+      }
+      adoptedUser.current = nextUser;
+      setSession(next);
+    };
+    loadSession().then(adopt).catch(() => setSession(null)).finally(() => setInitialized(true));
+    // INITIAL_SESSION repeats what loadSession resolves (and would report no session in the offline case).
+    const { data: subscription } = client.auth.onAuthStateChange((event, next) => { if (event !== 'INITIAL_SESSION') adopt(next); });
     return () => subscription.subscription.unsubscribe();
   }, [configured]);
 
@@ -43,7 +79,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setSettings(nextSettings);
   }, [userId]);
 
+  // Offline, the saved profile and settings stay in place.
   useEffect(() => { refreshAccount().catch(() => undefined); }, [refreshAccount]);
+  useEffect(() => { if (userId && profile && settings) writeCache('account', { profile, settings }); }, [userId, profile, settings]);
 
   const value = useMemo<SessionContext>(() => ({
     status: !configured ? 'unconfigured' : !initialized ? 'loading' : session ? 'signedIn' : 'signedOut',

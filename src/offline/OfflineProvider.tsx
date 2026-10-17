@@ -4,6 +4,7 @@ import * as Crypto from 'expo-crypto';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { friendlyError, isNetworkError, ServiceError } from '../services/errors';
+import { addHomeItem, archiveHomeItem, markHomeItem, updateHomeItem } from '../services/home';
 import { addItem, removeItem, updateItem } from '../services/lists';
 import { purchaseListItem } from '../services/purchases';
 import { useSession } from '../session';
@@ -38,6 +39,14 @@ async function send(op: QueuedOp, userId: string): Promise<Outcome> {
       await updateItem(op.itemId, op.changes);
     } else if (op.kind === 'removeItem') {
       await removeItem(op.itemId);
+    } else if (op.kind === 'addHomeItem') {
+      await addHomeItem(userId, op.homeId, op.name, { id: op.itemId, usualQuantity: op.usualQuantity, unit: op.unit ?? undefined, isBulk: op.isBulk, categoryId: op.categoryId });
+    } else if (op.kind === 'markHomeItem') {
+      await markHomeItem(op.itemId, op.status); // the server puts low and finished items on the To-buy list
+    } else if (op.kind === 'updateHomeItem') {
+      await updateHomeItem(op.itemId, op.changes);
+    } else if (op.kind === 'archiveHomeItem') {
+      await archiveHomeItem(op.itemId);
     } else {
       const options = { clientRef: op.clientRef, purchasedAt: op.purchasedAt };
       await purchaseListItem(op.itemId, op.actualAmount === null ? { useBudgetedAmount: true, ...options } : { actualAmount: op.actualAmount, ...options });
@@ -46,13 +55,13 @@ async function send(op: QueuedOp, userId: string): Promise<Outcome> {
   } catch (error) {
     if (isNetworkError(error) || (error instanceof ServiceError && error.code === 'UNAUTHORIZED')) return 'retry';
     // An earlier attempt reached the server before the connection dropped.
-    if (op.kind === 'addItem' && error instanceof ServiceError && error.code === 'ALREADY_EXISTS') return 'synced';
-    if (op.kind === 'removeItem' && error instanceof ServiceError && error.code === 'NOT_FOUND') return 'synced';
+    if ((op.kind === 'addItem' || op.kind === 'addHomeItem') && error instanceof ServiceError && error.code === 'ALREADY_EXISTS') return 'synced';
+    if ((op.kind === 'removeItem' || op.kind === 'archiveHomeItem') && error instanceof ServiceError && error.code === 'NOT_FOUND') return 'synced';
     return { drop: friendlyError(error) };
   }
 }
 
-/** Queues list changes made offline and syncs them in order when the connection returns. */
+/** Queues list and Home changes made offline and syncs them in order when the connection returns. */
 export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const { userId } = useSession();
   const [online, setOnline] = useState(true);
