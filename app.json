@@ -7,7 +7,7 @@
       "android",
       "ios"
     ],
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "light",
     "scheme": "grocefy",
     "plugins": [
@@ -48,7 +48,8 @@
       }
     },
     "ios": {
-      "bundleIdentifier": "com.grocefy.app"
+      "bundleIdentifier": "com.grocefy.app",
+      "supportsTablet": true
     },
     "icon": "./assets/icon.png",
     "extra": {

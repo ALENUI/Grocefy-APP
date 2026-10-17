@@ -12,16 +12,39 @@ import { friendlyError } from './services/errors';
 
 export const palette = { ink: '#1C2B22', muted: '#69756D', green: '#22784B', pale: '#EAF6EE', cream: '#F7F8F3', line: '#E2E7E1', white: '#FFFFFF', orange: '#E68A36', red: '#C84D4D', redPale: '#FBECEC' };
 
+// Content never stretches wider than this on tablets and in landscape; it is centred instead.
+const contentMaxWidth = 760;
+
+/** Screen size class: phones in portrait get one column; tablets and landscape get a centred, wider layout. */
+export function useLayout() {
+  const { width, height } = useWindowDimensions();
+  const contentWidth = Math.min(width, contentMaxWidth);
+  return { landscape: width > height, tablet: Math.min(width, height) >= 600, wide: width >= 700, columns: contentWidth >= 640 ? 2 : 1 };
+}
+
 export function Screen({ children, refreshing, onRefresh }: { children: React.ReactNode; refreshing?: boolean; onRefresh?: () => void }) {
+  const { tablet } = useLayout();
   // Scrolls the focused field above the keyboard on both platforms (Android is edge-to-edge, so the window never resizes).
-  return <SafeAreaView style={styles.screen} edges={['top']}>
-    <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+  // Left and right insets keep content clear of the notch in landscape.
+  return <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+    <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={[styles.content, styles.centered, tablet && { padding: 28 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
       refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={palette.green}/> : undefined}>{children}</KeyboardAwareScrollView>
   </SafeAreaView>;
 }
 export function Heading({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) { return <View style={styles.heading}><View style={{ flex: 1 }}><Text style={styles.title}>{title}</Text>{subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}</View>{action}</View>; }
 export function BackHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
   return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}><Pressable accessibilityLabel="Back" hitSlop={12} onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color={palette.ink}/></Pressable><View style={{ flex: 1 }}><Text style={styles.title} numberOfLines={2}>{title}</Text>{subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}</View>{action}</View>;
+}
+/** Lays children out in columns when there is room (tablets, landscape), otherwise one per row. */
+export function Grid({ children, gap = 11 }: { children: React.ReactNode; gap?: number }) {
+  const { columns } = useLayout();
+  const cells = React.Children.toArray(children);
+  if (columns === 1) return <View style={{ gap }}>{cells}</View>;
+  const rows = Array.from({ length: Math.ceil(cells.length / columns) }, (_, row) => cells.slice(row * columns, row * columns + columns));
+  return <View style={{ gap }}>{rows.map((row, index) => <View key={index} style={{ flexDirection: 'row', gap }}>
+    {row.map((cell, column) => <View key={column} style={{ flex: 1 }}>{cell}</View>)}
+    {Array.from({ length: columns - row.length }, (_, filler) => <View key={`filler-${filler}`} style={{ flex: 1 }}/>)}
+  </View>)}</View>;
 }
 export function Card({ children, style }: { children: React.ReactNode; style?: object }) { return <View style={[styles.card, style]}>{children}</View>; }
 export function Button({ label, onPress, variant = 'primary', icon, disabled, loading }: { label: string; onPress: () => void; variant?: 'primary' | 'soft' | 'danger'; icon?: keyof typeof Ionicons.glyphMap; disabled?: boolean; loading?: boolean }) {
@@ -75,7 +98,7 @@ export function Sheet({ visible, title, subtitle, onClose, children, top }: { vi
 
   return <Modal visible={mounted} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <KeyboardAvoidingView behavior="padding" style={[styles.sheetFrame, { paddingTop: insets.top + 12 }]}>
+      <KeyboardAvoidingView behavior="padding" style={[styles.sheetFrame, { paddingTop: insets.top + 12, paddingLeft: insets.left, paddingRight: insets.right }]}>
         <Animated.View style={[StyleSheet.absoluteFill, styles.shade, shadeStyle]}><Pressable accessibilityLabel="Close" style={{ flex: 1 }} onPress={onClose}/></Animated.View>
         <Animated.View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }, sheetStyle]}>
           <GestureDetector gesture={drag}><View style={{ paddingTop: 10 }}><View style={styles.sheetHandle}/>
@@ -106,5 +129,5 @@ export function CurrencyPicker({ value, onChange, disabled }: { value: CurrencyC
     </Sheet></>;
 }
 export const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.cream }, content: { padding: 20, paddingBottom: 42, gap: 16 }, heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 6, gap: 12 }, title: { fontSize: 28, fontWeight: '800', color: palette.ink, letterSpacing: -0.6 }, subtitle: { color: palette.muted, fontSize: 14, marginTop: 4 }, card: { backgroundColor: palette.white, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: palette.line }, button: { backgroundColor: palette.green, borderRadius: 13, minHeight: 48, paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8 }, softButton: { backgroundColor: palette.pale }, dangerButton: { backgroundColor: palette.redPale }, buttonText: { color: palette.white, fontSize: 15, fontWeight: '700' }, field: { gap: 7 }, label: { color: palette.ink, fontWeight: '700', fontSize: 14 }, inputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.white, borderWidth: 1, borderColor: palette.line, borderRadius: 12, paddingHorizontal: 14 }, prefix: { color: palette.green, fontWeight: '800', marginRight: 10 }, input: { flex: 1, height: 50, color: palette.ink, fontSize: 16 }, note: { color: palette.muted, fontSize: 12 }, chip: { paddingVertical: 9, paddingHorizontal: 12, borderRadius: 20, backgroundColor: palette.pale }, badge: { position: 'absolute', top: -4, right: -4, backgroundColor: palette.red, borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }, picker: { borderWidth: 1, borderColor: palette.line, backgroundColor: palette.white, borderRadius: 12, minHeight: 58, paddingHorizontal: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, pickerValue: { color: palette.ink, fontWeight: '700' }, pickerHint: { fontSize: 12, color: palette.muted, marginTop: 2 }, sheetFrame: { flex: 1, justifyContent: 'flex-end' }, shade: { backgroundColor: '#00000055' }, sheet: { flexShrink: 1, backgroundColor: palette.cream, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20 }, sheetHandle: { width: 40, height: 5, borderRadius: 5, backgroundColor: '#C5CEC7', alignSelf: 'center', marginBottom: 14 }, sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }, sheetTitle: { fontWeight: '800', fontSize: 21, color: palette.ink }, search: { height: 48, borderRadius: 12, backgroundColor: palette.white, paddingHorizontal: 14, color: palette.ink, marginBottom: 8 }, currencyRow: { flexDirection: 'row', paddingVertical: 15, justifyContent: 'space-between', borderBottomWidth: 1, borderColor: palette.line, alignItems: 'center' }, currencyCode: { fontWeight: '800', color: palette.ink, fontSize: 16 }, currencyName: { color: palette.muted, marginTop: 2 }
+  screen: { flex: 1, backgroundColor: palette.cream }, content: { padding: 20, paddingBottom: 42, gap: 16 }, heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 6, gap: 12 }, title: { fontSize: 28, fontWeight: '800', color: palette.ink, letterSpacing: -0.6 }, subtitle: { color: palette.muted, fontSize: 14, marginTop: 4 }, card: { backgroundColor: palette.white, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: palette.line }, button: { backgroundColor: palette.green, borderRadius: 13, minHeight: 48, paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8 }, softButton: { backgroundColor: palette.pale }, dangerButton: { backgroundColor: palette.redPale }, buttonText: { color: palette.white, fontSize: 15, fontWeight: '700' }, field: { gap: 7 }, label: { color: palette.ink, fontWeight: '700', fontSize: 14 }, inputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.white, borderWidth: 1, borderColor: palette.line, borderRadius: 12, paddingHorizontal: 14 }, prefix: { color: palette.green, fontWeight: '800', marginRight: 10 }, input: { flex: 1, height: 50, color: palette.ink, fontSize: 16 }, note: { color: palette.muted, fontSize: 12 }, chip: { paddingVertical: 9, paddingHorizontal: 12, borderRadius: 20, backgroundColor: palette.pale }, badge: { position: 'absolute', top: -4, right: -4, backgroundColor: palette.red, borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }, picker: { borderWidth: 1, borderColor: palette.line, backgroundColor: palette.white, borderRadius: 12, minHeight: 58, paddingHorizontal: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, pickerValue: { color: palette.ink, fontWeight: '700' }, pickerHint: { fontSize: 12, color: palette.muted, marginTop: 2 }, sheetFrame: { flex: 1, justifyContent: 'flex-end' }, centered: { width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }, shade: { backgroundColor: '#00000055' }, sheet: { flexShrink: 1, width: '100%', maxWidth: 620, alignSelf: 'center', backgroundColor: palette.cream, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20 }, sheetHandle: { width: 40, height: 5, borderRadius: 5, backgroundColor: '#C5CEC7', alignSelf: 'center', marginBottom: 14 }, sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }, sheetTitle: { fontWeight: '800', fontSize: 21, color: palette.ink }, search: { height: 48, borderRadius: 12, backgroundColor: palette.white, paddingHorizontal: 14, color: palette.ink, marginBottom: 8 }, currencyRow: { flexDirection: 'row', paddingVertical: 15, justifyContent: 'space-between', borderBottomWidth: 1, borderColor: palette.line, alignItems: 'center' }, currencyCode: { fontWeight: '800', color: palette.ink, fontSize: 16 }, currencyName: { color: palette.muted, marginTop: 2 }
 });

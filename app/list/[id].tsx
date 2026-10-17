@@ -19,7 +19,7 @@ import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
 import { listDetailKey, loadListDetail } from '@/src/listDetail';
 import { priceUnit, QuantityBadge, quantityLabel, QuantityTypeChips, UnitField } from '@/src/quantity';
-import { BackHeader, Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
+import { BackHeader, Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, Grid, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
 
 const parseQuantity = (input: string) => { const value = Number(input.replace(',', '.')); return Number.isFinite(value) && value > 0 ? value : null; };
 
@@ -92,13 +92,13 @@ export default function ListDetail() {
     {items.length === 0 && <EmptyState title="No items yet" message={canEdit ? 'Add what you need and set a budget for each item.' : 'Items added to this list will appear here.'}/>}
     {sections.map((section) => <View key={section.name} style={{ gap: 10 }}>
       {sections.length > 1 && <Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>{section.name.toUpperCase()}</Text>}
-      {section.items.map((item) => <Card key={item.id}><View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+      <Grid gap={10}>{section.items.map((item) => <Card key={item.id}><View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
         <Pressable disabled={!canEdit} onPress={() => setEditing(item)} style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><Text style={{ color: palette.ink, fontSize: 16, fontWeight: '800', flexShrink: 1 }}>{item.product?.name ?? 'Item'}</Text><QuantityBadge isBulk={item.is_bulk}/></View>
           <Text style={{ color: palette.muted, marginTop: 5 }}>{quantityLabel(item)} × {formatCurrency(item.budgeted_unit_price, code)} {priceUnit(item.is_bulk, item.unit)} = {formatCurrency(item.budgeted_total ?? 0, code)}{item.pendingSync ? ' · waiting to sync' : ''}</Text></Pressable>
         {canEdit && <Pressable accessibilityLabel={`Remove ${item.product?.name}`} hitSlop={6} onPress={() => confirmRemove(item)} style={{ backgroundColor: palette.redPale, padding: 12, borderRadius: 12 }}><Ionicons name="trash-outline" color={palette.red} size={20}/></Pressable>}
         {canPurchase && <Pressable accessibilityLabel={`Purchase ${item.product?.name}`} onPress={() => setBuying(item)} style={{ backgroundColor: palette.pale, padding: 12, borderRadius: 12 }}><Ionicons name="checkmark" color={palette.green} size={22}/></Pressable>}
-      </View></Card>)}
+      </View></Card>)}</Grid>
     </View>)}
     {canEdit && list.archived_at === null && <Button label="Add item" icon="add" onPress={() => setAdding(true)}/>}
     {purchased.length > 0 && <View style={{ gap: 10 }}><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16, marginTop: 6 }}>Purchased</Text>
