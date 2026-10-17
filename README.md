@@ -16,7 +16,7 @@ Grocefy helps a household keep track of the groceries and everyday items it keep
 - **Buying and price memory:** tick an item as bought, pay the expected price or enter the actual one; the price is saved and reused. Purchases are recorded once even if the connection drops.
 - **Sharing with the people you live with:** invite them by username or email. **Members** can add items, mark what is running out, and buy; **View-only** people (for example children) can see everything without changing it. The person who created the home manages who is in it.
 - **Live updates and push notifications:** changes appear on everyone's phone without refreshing, and housemates are notified when something runs low or finishes, or is bought.
-- **Works offline:** your home and lists are saved on the phone, and changes made without signal sync when the connection returns.
+- **Works offline and opens instantly:** your home, lists, and account are saved on the phone and shown the moment the app opens, then refreshed in the background. Without signal everything stays readable (every list is saved ahead of time), and changes to lists and the home inventory (adding, editing, marking, buying, removing) are kept on the phone and sync in order when the connection returns.
 - **Spent this month and purchase history:** a monthly total on the Home screen and a dated list of past purchases.
 - **Accounts:** sign up with a username, sign in, and reset a forgotten password by email.
 

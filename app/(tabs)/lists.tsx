@@ -7,6 +7,8 @@ import { ListCard } from '@/src/ListCard';
 import { formatCurrency } from '@/src/currency';
 import { fetchLists, leftToBuy } from '@/src/services/lists';
 import { watchLists } from '@/src/services/realtime';
+import { usePrefetchListDetails } from '@/src/listDetail';
+import { useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
 import { useHome } from '@/src/useHome';
 import { useLive } from '@/src/useLive';
@@ -18,6 +20,7 @@ export default function Lists() {
   const homeId = features.multipleHomes ? undefined : home?.id;
   const lists = useAsync(async () => (features.multipleHomes || homeId ? fetchLists({ groupId: homeId }) : []), [homeId], { cacheKey: `lists:${homeId ?? 'all'}` });
   useLive(watchLists, lists.reload, []);
+  usePrefetchListDetails(lists, useUserId());
   // Total still to buy across lists, one line per currency (amounts in different currencies are never added).
   const toBuy = Object.entries((lists.data ?? []).reduce<Record<string, number>>((all, list) => ({ ...all, [list.currency_code]: (all[list.currency_code] ?? 0) + leftToBuy(list.totals) }), {}));
   const itemsLeft = (lists.data ?? []).reduce((sum, list) => sum + (list.totals?.item_count ?? 0) - (list.totals?.purchased_count ?? 0), 0);

@@ -11,7 +11,7 @@ import { features } from '@/src/features';
 /** Built-in categories plus the user's own. Custom categories are archived, never deleted, so history keeps its labels. */
 function Categories() {
   const userId = useUserId();
-  const categories = useAsync(() => fetchCategories(userId), [userId]);
+  const categories = useAsync(() => fetchCategories(userId), [userId], { cacheKey: 'categories' });
   const [editing, setEditing] = useState<Category | 'new' | null>(null);
   const custom = (categories.data ?? []).filter((category) => !category.is_default);
   const builtIn = (categories.data ?? []).filter((category) => category.is_default);

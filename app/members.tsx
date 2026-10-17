@@ -30,7 +30,7 @@ export default function Members() {
     const [members, invitations, role] = await Promise.all([fetchMembers(type, id), fetchPendingInvitations(), type === 'list' ? fetchListRole(id) : fetchGroupRole(id)]);
     // RLS returns only invitations the caller sent, received, or owns the resource of.
     return { members, isOwner: role === 'owner', invitations: invitations.filter((invitation) => invitation.resource_type === type && invitation.resource_id === id) };
-  }, [type, id, userId]);
+  }, [type, id, userId], { cacheKey: `members:${type}:${id}` });
   useLive((onChange) => watchTables([type === 'group' ? { table: 'group_members', filter: `group_id=eq.${id}` } : { table: 'list_members', filter: `list_id=eq.${id}` }, { table: 'invitations' }], onChange), state.reload, [type, id]);
   const [inviting, setInviting] = useState(false);
   const [managing, setManaging] = useState<Member | null>(null);

@@ -10,7 +10,7 @@ export function useHome() {
   const userId = useUserId();
   const { settings } = useSession();
   const loaded = settings !== null;
-  const state = useAsync(async () => (loaded ? fetchCurrentHome(userId, settings?.current_home_id) : undefined),
-    [userId, loaded, settings?.current_home_id], { cacheKey: 'home' });
+  // Until settings arrive (or while offline without them) the saved home stays on screen instead of being replaced.
+  const state = useAsync(() => fetchCurrentHome(userId, settings?.current_home_id), [userId, settings?.current_home_id], { cacheKey: 'home', enabled: loaded });
   return { ...state, home: state.data };
 }

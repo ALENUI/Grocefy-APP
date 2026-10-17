@@ -22,14 +22,14 @@ function Reports() {
   const [period, setPeriod] = useState({ year: today.getFullYear(), month: today.getMonth() + 1 });
   const [scope, setScope] = useState<ReportScope>({ kind: 'personal' });
   // Group reports are for owners and partners.
-  const groups = useAsync(async () => (await fetchGroups(userId)).filter((group) => group.role === 'owner' || group.role === 'partner'), [userId]);
+  const groups = useAsync(async () => (await fetchGroups(userId)).filter((group) => group.role === 'owner' || group.role === 'partner'), [userId], { cacheKey: 'report-groups' });
   const scopeKey = scope.kind === 'group' ? scope.groupId : scope.kind;
   const reports = useAsync(async () => {
     // Generation is idempotent: it refreshes the current month and returns closed months as issued.
     await generateMonthlyReport(period.year, period.month, scope);
     return fetchMonthlyReports({ scope, year: period.year, month: period.month });
-  }, [period.year, period.month, scopeKey]);
-  const trend = useAsync(() => fetchSpendingTrend(6, scope.kind === 'group' ? scope.groupId : undefined), [scopeKey]);
+  }, [period.year, period.month, scopeKey], { cacheKey: `reports:${period.year}-${period.month}:${scopeKey}` });
+  const trend = useAsync(() => fetchSpendingTrend(6, scope.kind === 'group' ? scope.groupId : undefined), [scopeKey], { cacheKey: `trend:${scopeKey}` });
   const isCurrentMonth = period.year === today.getFullYear() && period.month === today.getMonth() + 1;
   const shift = (delta: number) => setPeriod(({ year, month }) => { const next = new Date(year, month - 1 + delta, 1); return { year: next.getFullYear(), month: next.getMonth() + 1 }; });
 

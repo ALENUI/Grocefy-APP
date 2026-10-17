@@ -61,7 +61,7 @@ test('relative times', () => {
   assert.equal(timeAgo('2026-10-02T09:00:00Z', now), '3 h ago');
 });
 
-const { applyQueue, processQueue } = require('../src/offline/queue.ts');
+const { applyQueue, applyHomeQueue, homeListId, processQueue } = require('../src/offline/queue.ts');
 const { toServiceError, isNetworkError } = require('../src/services/errors.ts');
 
 const serverItem = (id, name, status = 'pending') => ({
@@ -191,4 +191,40 @@ test('push works in development and production builds, loading expo-notification
     assert.equal(await module.registerDevice({ ask: false }), 'registered');
     assert.equal(loads.notifications, 1, 'loaded once and reused');
   } finally { restore(); }
+});
+
+const homeItem = (id, name, status = 'in_stock') => ({
+  id, group_id: 'home', product_id: `p-${id}`, category_id: null, status, usual_quantity: 1, unit: null, is_bulk: false, created_by: 'u', updated_by: 'u',
+  created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', archived_at: null, product: { id: `p-${id}`, name }, category: null, lastPrice: null
+});
+const homeOp = (kind, fields) => ({ ...op(kind, fields), listId: homeListId('home') });
+
+test('Home changes made offline show straight away', () => {
+  const items = applyHomeQueue([homeItem('rice', 'Rice'), homeItem('soap', 'Soap'), homeItem('oil', 'Oil')], [
+    homeOp('markHomeItem', { itemId: 'rice', status: 'out' }),
+    homeOp('addHomeItem', { itemId: 'salt', homeId: 'home', name: 'Salt', usualQuantity: 2, unit: 'kg', isBulk: false, categoryId: 'c1', categoryName: 'Kitchen' }),
+    homeOp('updateHomeItem', { itemId: 'oil', changes: { usualQuantity: 3, isBulk: true } }),
+    homeOp('archiveHomeItem', { itemId: 'soap' }),
+    { ...homeOp('markHomeItem', { itemId: 'oil', status: 'low' }), listId: homeListId('another') },
+    op('removeItem', { itemId: 'rice' }) // a list change, not a Home one
+  ], 'home');
+  assert.deepEqual(items.map((item) => [item.id, item.status, !!item.pendingSync]), [['rice', 'out', true], ['oil', 'in_stock', true], ['salt', 'in_stock', true]]);
+  const oil = items.find((item) => item.id === 'oil');
+  assert.equal(oil.usual_quantity, 3);
+  assert.equal(oil.is_bulk, true);
+  const salt = items.find((item) => item.id === 'salt');
+  assert.deepEqual([salt.product.name, salt.unit, salt.category.name], ['Salt', 'kg', 'Kitchen']);
+});
+
+test('Home changes stay off list screens', () => {
+  const items = applyQueue([serverItem('rice', 'Rice')], [homeOp('archiveHomeItem', { itemId: 'rice' })], homeListId('home'));
+  assert.equal(items.length, 1, 'applyQueue only applies list changes');
+});
+
+test('later changes to a Home item whose offline add was refused are skipped', async () => {
+  const result = await processQueue([
+    homeOp('addHomeItem', { itemId: 'x' }), homeOp('markHomeItem', { itemId: 'x', status: 'low' }), homeOp('markHomeItem', { itemId: 'y', status: 'out' })
+  ], async (queued) => (queued.kind === 'addHomeItem' ? { drop: 'Not allowed' } : 'synced'), () => 'now');
+  assert.equal(result.synced, 1);
+  assert.deepEqual(result.problems.map((problem) => problem.message), ['Not allowed', 'Skipped because the item could not be added.']);
 });

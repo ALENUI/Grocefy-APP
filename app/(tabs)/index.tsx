@@ -5,7 +5,9 @@ import { formatCurrency, parseAmount } from '@/src/currency';
 import { features } from '@/src/features';
 import { CategoryOption, CategoryPicker, generalCategory } from '@/src/CategoryPicker';
 import { ListCard } from '@/src/ListCard';
+import { usePrefetchListDetails } from '@/src/listDetail';
 import { useOffline } from '@/src/offline/OfflineProvider';
+import { applyHomeQueue, DisplayHomeItem, homeListId } from '@/src/offline/queue';
 import { priceUnit, quantityLabel, QuantityTypeChips, UnitField } from '@/src/quantity';
 import { friendlyError } from '@/src/services/errors';
 import { addHomeItem, archiveHomeItem, createHome, fetchHomeItems, fetchMonthSpending, HomeItem, markHomeItem, StockStatus, updateHomeItem } from '@/src/services/home';
@@ -30,11 +32,12 @@ export default function Home() {
   const { home, error: homeError, reload: reloadHome } = useHome();
   const homeId = home?.id;
   const items = useAsync(async () => (home ? fetchHomeItems(home.id, home.currency_code) : []), [homeId, home?.currency_code], { cacheKey: `home-items:${homeId ?? 'none'}` });
-  const spending = useAsync(async () => (home && features.monthlySpending ? fetchMonthSpending(home.id) : []), [homeId]);
-  const inbox = useAsync(() => fetchInbox(userId, session?.user.email), [userId, session?.user.email]);
+  const spending = useAsync(async () => (home && features.monthlySpending ? fetchMonthSpending(home.id) : []), [homeId], { cacheKey: `spending:${homeId ?? 'none'}` });
+  const inbox = useAsync(() => fetchInbox(userId, session?.user.email), [userId, session?.user.email], { cacheKey: 'inbox' });
   // Same lists (and offline cache) as the To-buy tab.
   const lists = useAsync(async () => (homeId ? fetchLists({ groupId: homeId }) : []), [homeId], { cacheKey: homeId ? `lists:${homeId}` : undefined });
   useLive(watchLists, lists.reload, []);
+  usePrefetchListDetails(lists, userId);
   useLive((onChange) => (homeId ? watchHome(homeId, onChange) : () => undefined), () => { items.reload(); spending.reload(); }, [homeId]);
   useLive((onChange) => watchInbox(userId, onChange), inbox.reload, [userId]);
   const [adding, setAdding] = useState(false);
@@ -43,20 +46,24 @@ export default function Home() {
   const [marking, setMarking] = useState<string>();
   // After something is marked low or finished: how much to restock (the To-buy entry it was put on).
   const [restock, setRestock] = useState<{ entry: ListItem; name: string } | null>(null);
-  const categoryList = useAsync(() => fetchCategories(userId), [userId]);
+  const categoryList = useAsync(() => fetchCategories(userId), [userId], { cacheKey: 'categories' });
+  // Changes made offline show straight away and are replaced by server state once they sync.
+  const { ops, syncedVersion, submit } = useOffline();
+  const { reload: reloadItems } = items; const { reload: reloadLists } = lists;
+  useEffect(() => { if (syncedVersion) { reloadItems(); reloadLists(); } }, [syncedVersion, reloadItems, reloadLists]);
 
   const bell = <IconButton icon="notifications-outline" label="Inbox" badge={inbox.data?.unreadCount} onPress={() => router.push('/inbox')}/>;
   if (home === undefined) return <Screen><Heading title="Home" action={bell}/>{homeError ? <ErrorNotice error={homeError} onRetry={reloadHome}/> : <Loading/>}</Screen>;
   if (home === null) return <Screen><Heading title="Welcome" subtitle="Let's set up your home" action={bell}/><CreateHome onCreated={reloadHome}/></Screen>;
 
   const canEdit = home.role === 'owner' || home.role === 'partner' || home.role === 'editor';
-  const all = items.data ?? [];
+  const all = applyHomeQueue(items.data ?? [], ops, home.id);
   const needed = all.filter((item) => item.status !== 'in_stock').sort((a, b) => (a.status === b.status ? 0 : a.status === 'out' ? -1 : 1));
   const stocked = all.filter((item) => item.status === 'in_stock');
   // Defaults, your own, and any a housemate used in this home.
   const categories = [...(categoryList.data ?? []), ...all.map((item) => item.category).filter((category): category is CategoryOption => !!category)]
     .filter((category, index, every) => every.findIndex((other) => other.id === category.id) === index);
-  const row = (item: HomeItem) => <ItemRow key={item.id} item={item} currencyCode={home.currency_code} canEdit={canEdit} busy={marking === item.id} onMark={(status) => mark(item, status)} onEdit={() => setEditing(item)}/>;
+  const row = (item: DisplayHomeItem) => <ItemRow key={item.id} item={item} currencyCode={home.currency_code} canEdit={canEdit} busy={marking === item.id} onMark={(status) => mark(item, status)} onEdit={() => setEditing(item)}/>;
   // Lists with something still to buy; finished lists stay on the To-buy tab.
   const toBuy = (lists.data ?? []).filter((list) => (list.totals?.purchased_count ?? 0) < (list.totals?.item_count ?? 0));
 
@@ -64,7 +71,14 @@ export default function Home() {
     if (item.status === status) return;
     setMarking(item.id); setNotice(undefined);
     try {
-      const entry = await markHomeItem(item.id, status);
+      const name = item.product?.name ?? 'Item';
+      const result = await submit({ kind: 'markHomeItem', listId: homeListId(home.id), label: `Mark ${name} ${statusLabel[status].toLowerCase()}`, itemId: item.id, status },
+        () => markHomeItem(item.id, status));
+      if (result.queued) {
+        setNotice(status === 'in_stock' ? undefined : { text: `Saved on this phone. ${name} goes on your To-buy list when you are back online.` });
+        return;
+      }
+      const entry = result.value;
       await Promise.all([items.reload(), lists.reload()]);
       setNotice(entry ? { text: `${item.product?.name ?? 'Item'} is on your To-buy list${entry.budgeted_unit_price > 0 ? ` at ${formatCurrency(entry.budgeted_unit_price, home.currency_code)}` : ''}.`, listId: entry.list_id } : undefined);
       if (entry && entry.status === 'pending') setRestock({ entry: entry as ListItem, name: item.product?.name ?? 'Item' });
@@ -108,8 +122,8 @@ export default function Home() {
 }
 
 /** A status section, with its items grouped under their categories (General last). */
-function Section({ title, items, render }: { title: string; items: HomeItem[]; render: (item: HomeItem) => React.ReactNode }) {
-  const groups = items.reduce<{ name: string; items: HomeItem[] }[]>((all, item) => {
+function Section({ title, items, render }: { title: string; items: DisplayHomeItem[]; render: (item: DisplayHomeItem) => React.ReactNode }) {
+  const groups = items.reduce<{ name: string; items: DisplayHomeItem[] }[]>((all, item) => {
     const name = item.category?.name ?? 'General';
     const group = all.find((entry) => entry.name === name);
     if (group) group.items.push(item); else all.push({ name, items: [item] });
@@ -151,13 +165,13 @@ function RestockSheet({ restock, onClose, onChanged }: { restock: { entry: ListI
   </Sheet>;
 }
 
-function ItemRow({ item, currencyCode, canEdit, busy, onMark, onEdit }: { item: HomeItem; currencyCode: string; canEdit: boolean; busy: boolean; onMark: (status: StockStatus) => void; onEdit: () => void }) {
+function ItemRow({ item, currencyCode, canEdit, busy, onMark, onEdit }: { item: DisplayHomeItem; currencyCode: string; canEdit: boolean; busy: boolean; onMark: (status: StockStatus) => void; onEdit: () => void }) {
   return <View style={{ paddingVertical: 12, gap: 8, opacity: busy ? 0.5 : 1 }}>
     <Pressable disabled={!canEdit} onPress={onEdit} accessibilityHint="Edit this item">
       <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>{item.product?.name ?? 'Item'}</Text>
       <Text style={{ color: palette.muted, marginTop: 2, fontSize: 13 }}>
         {/* The full quantity is what was bought last time (or set by hand); it is also what goes on the To-buy list. */}
-        {item.status === 'in_stock' ? `Full: ${quantityLabel({ quantity: item.usual_quantity, unit: item.unit, is_bulk: item.is_bulk })}` : `Buy ${quantityLabel({ quantity: item.usual_quantity, unit: item.unit, is_bulk: item.is_bulk })}`} · {item.lastPrice !== null ? `last paid ${formatCurrency(item.lastPrice, currencyCode)} ${priceUnit(item.is_bulk, item.unit)}` : 'no price yet'}
+        {item.status === 'in_stock' ? `Full: ${quantityLabel({ quantity: item.usual_quantity, unit: item.unit, is_bulk: item.is_bulk })}` : `Buy ${quantityLabel({ quantity: item.usual_quantity, unit: item.unit, is_bulk: item.is_bulk })}`} · {item.lastPrice !== null ? `last paid ${formatCurrency(item.lastPrice, currencyCode)} ${priceUnit(item.is_bulk, item.unit)}` : 'no price yet'}{item.pendingSync ? ' · waiting to sync' : ''}
       </Text>
     </Pressable>
     <View style={{ flexDirection: 'row', gap: 6 }} accessibilityRole="radiogroup">
@@ -201,6 +215,7 @@ function AddItemSheet({ visible, homeId, userId, categories, onCategoryCreated, 
   const [name, setName] = useState(''); const [quantity, setQuantity] = useState('1'); const [isBulk, setIsBulk] = useState(false); const [unit, setUnit] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
+  const { submit, newId } = useOffline();
   useEffect(() => { if (visible) { setName(''); setQuantity('1'); setIsBulk(false); setUnit(''); setCategoryId(null); setError(undefined); } }, [visible]);
   // Nothing picked means General (the database files it there too).
   const selected = categoryId ?? generalCategory(categories)?.id ?? null;
@@ -209,7 +224,13 @@ function AddItemSheet({ visible, homeId, userId, categories, onCategoryCreated, 
     if (!name.trim()) return setError('Enter what you keep at home, e.g. Rice.');
     if (count === null || count <= 0) return setError('Enter how many make it full.');
     setBusy(true); setError(undefined);
-    try { await addHomeItem(userId, homeId, name.trim(), { usualQuantity: count, unit: unit.trim() || undefined, isBulk, categoryId: selected }); onAdded(); onClose(); } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
+    const itemId = newId(); const itemName = name.trim(); const unitName = unit.trim() || null;
+    try {
+      await submit({ kind: 'addHomeItem', listId: homeListId(homeId), label: `Add ${itemName}`, itemId, homeId, name: itemName, usualQuantity: count, unit: unitName, isBulk, categoryId: selected,
+        categoryName: categories.find((category) => category.id === selected)?.name ?? null },
+      () => addHomeItem(userId, homeId, itemName, { id: itemId, usualQuantity: count, unit: unitName ?? undefined, isBulk, categoryId: selected }));
+      onAdded(); onClose();
+    } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
   };
   return <Sheet visible={visible} title="Add to your home" subtitle="Something your household buys regularly." onClose={onClose}>
     <Field label="Item" value={name} onChangeText={setName} hint="e.g. Rice"/>
@@ -229,11 +250,14 @@ function EditItemSheet({ item, userId, categories, onCategoryCreated, onClose, o
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
   useEffect(() => { if (item) { setQuantity(String(Number(item.usual_quantity))); setUnit(item.unit ?? ''); setIsBulk(item.is_bulk); setCategoryId(item.category_id); setError(undefined); } }, [item]);
-  const run = async (action: () => Promise<void>) => { setBusy(true); setError(undefined); try { await action(); onChanged(); onClose(); } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); } };
+  const { submit } = useOffline();
+  const run = async (action: () => Promise<unknown>) => { setBusy(true); setError(undefined); try { await action(); onChanged(); onClose(); } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); } };
   const save = () => {
     const count = parseAmount(quantity.replace(',', '.'), 'USD');
     if (!item || count === null || count <= 0) return setError('Enter how many make it full.');
-    run(() => updateHomeItem(item.id, { usualQuantity: count, unit: unit.trim() || null, isBulk, categoryId }));
+    const changes = { usualQuantity: count, unit: unit.trim() || null, isBulk, categoryId };
+    run(() => submit({ kind: 'updateHomeItem', listId: homeListId(item.group_id), label: `Edit ${item.product?.name ?? 'item'}`, itemId: item.id, changes,
+      categoryName: categories.find((category) => category.id === categoryId)?.name ?? null }, () => updateHomeItem(item.id, changes)));
   };
   return <Sheet visible={!!item} title={item?.product?.name ?? 'Item'} onClose={onClose}>
     <Field label="Full quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/>
@@ -242,6 +266,6 @@ function EditItemSheet({ item, userId, categories, onCategoryCreated, onClose, o
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Save" onPress={save} loading={busy}/>
-    <Button label="Remove from home" variant="danger" icon="trash-outline" disabled={busy} onPress={() => item && run(() => archiveHomeItem(item.id))}/>
+    <Button label="Remove from home" variant="danger" icon="trash-outline" disabled={busy} onPress={() => item && run(() => submit({ kind: 'archiveHomeItem', listId: homeListId(item.group_id), label: `Remove ${item.product?.name ?? 'item'}`, itemId: item.id }, () => archiveHomeItem(item.id)))}/>
   </Sheet>;
 }
