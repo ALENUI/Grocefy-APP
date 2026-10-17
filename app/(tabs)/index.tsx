@@ -19,7 +19,7 @@ import { useSession, useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
 import { useHome } from '@/src/useHome';
 import { useLive } from '@/src/useLive';
-import { Button, Card, CurrencyPicker, EmptyState, ErrorNotice, Field, Heading, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
+import { Button, Card, CurrencyPicker, EmptyState, ErrorNotice, Field, Grid, Heading, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
 
 const statusLabel: Record<StockStatus, string> = { in_stock: 'Full', low: 'Low', out: 'Finished' };
 // Home shows the first few To-buy lists; the rest are one tap away on the To-buy tab.
@@ -105,15 +105,18 @@ export default function Home() {
     </Card>}
     {toBuy.length > 0 && <View style={{ gap: 8 }}>
       <Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>TO BUY</Text>
-      <View style={{ gap: 11 }}>{toBuy.slice(0, homeListLimit).map((list) => <ListCard key={list.id} list={list} showGroup={false}/>)}</View>
+      <Grid>{toBuy.slice(0, homeListLimit).map((list) => <ListCard key={list.id} list={list} showGroup={false}/>)}</Grid>
       {toBuy.length > homeListLimit && <Button label={`View ${toBuy.length - homeListLimit} more ${toBuy.length - homeListLimit === 1 ? 'list' : 'lists'}`} variant="soft" icon="chevron-forward" onPress={() => router.navigate('/lists')}/>}
     </View>}
     {items.error ? <ErrorNotice error={items.error} onRetry={items.reload}/> : !items.data ? <Loading/> : all.length === 0
       ? <EmptyState title="What do you keep at home?" message="Add the things your household buys regularly, like rice, oil, soap, or toothpaste. Mark them when they run low and they go straight onto your To-buy list."
           action={canEdit ? <Button label="Add your first item" icon="add" onPress={() => setAdding(true)}/> : undefined}/>
       : <>
-        {needed.length > 0 && <Section title="Needs buying" items={needed} render={row}/>}
-        {stocked.length > 0 && <Section title="In stock" items={stocked} render={row}/>}
+        {/* Side by side on tablets and in landscape. */}
+        <Grid gap={16}>
+          {needed.length > 0 && <Section title="Needs buying" items={needed} render={row}/>}
+          {stocked.length > 0 && <Section title="In stock" items={stocked} render={row}/>}
+        </Grid>
       </>}
     <AddItemSheet visible={adding} homeId={home.id} userId={userId} categories={categories} onCategoryCreated={categoryList.reload} onClose={() => setAdding(false)} onAdded={items.reload}/>
     <EditItemSheet item={editing} userId={userId} categories={categories} onCategoryCreated={categoryList.reload} onClose={() => setEditing(null)} onChanged={items.reload}/>

@@ -12,7 +12,7 @@ import { useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
 import { useHome } from '@/src/useHome';
 import { useLive } from '@/src/useLive';
-import { Button, Card, EmptyState, ErrorNotice, Heading, IconButton, Loading, palette, Screen } from '@/src/ui';
+import { Button, Card, EmptyState, ErrorNotice, Grid, Heading, IconButton, Loading, palette, Screen } from '@/src/ui';
 
 /** The home's shopping lists: what needs buying, ready to tick off at the market. */
 export default function Lists() {
@@ -42,7 +42,7 @@ export default function Lists() {
     </Card>}
     {lists.error ? <ErrorNotice error={lists.error} onRetry={lists.reload}/> : !lists.data ? <Loading/> : lists.data.length === 0
       ? (home !== null && <EmptyState title="No lists yet" message="Mark items as running low on the Home tab, or create a list for a shopping trip."/>)
-      : <View style={{ gap: 11 }}>{lists.data.map((list) => <ListCard key={list.id} list={list} showGroup={features.multipleHomes}/>)}</View>}
+      : <Grid>{lists.data.map((list) => <ListCard key={list.id} list={list} showGroup={features.multipleHomes}/>)}</Grid>}
     {(features.multipleHomes || homeId) && <Button label="New list" icon="add-circle-outline" variant="soft" onPress={newList}/>}
   </Screen>;
 }
