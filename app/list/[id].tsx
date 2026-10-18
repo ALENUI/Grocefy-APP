@@ -17,6 +17,7 @@ import { applyQueue, DisplayItem } from '@/src/offline/queue';
 import { watchList } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
+import { CategoryPicker, generalCategory, CategoryOption as PickerOption } from '@/src/CategoryPicker';
 import { listDetailKey, loadListDetail } from '@/src/listDetail';
 import { priceUnit, QuantityBadge, quantityLabel, QuantityTypeChips, UnitField } from '@/src/quantity';
 import { BackHeader, Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, Grid, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
@@ -53,13 +54,18 @@ export default function ListDetail() {
   const saved = (totals?.purchased_budgeted_total ?? 0) - (totals?.purchased_total ?? 0);
   // What is still to buy, from the items on screen (so changes made offline count straight away).
   const toBuyTotal = pending.reduce((sum, item) => sum + (item.budgeted_total ?? 0), 0);
-  // Group what is left to buy by category, like aisles in a store. Items without a category use the list's.
+  // Group what is left to buy by category, like aisles in a store: an item with a category the list does not show yet
+  // starts a new section. Items without a category go under General (last).
   const sections = pending.reduce<{ name: string; items: DisplayItem[] }[]>((all, item) => {
-    const name = features.customCategories ? item.category?.name ?? list.category?.name ?? 'Uncategorized' : 'To buy';
+    const name = item.category?.name || 'General';
     const section = all.find((entry) => entry.name === name);
     if (section) section.items.push(item); else all.push({ name, items: [item] });
     return all;
-  }, []);
+  }, []).sort((a, b) => Number(a.name === 'General') - Number(b.name === 'General') || a.name.localeCompare(b.name));
+  // For the category picker: the defaults and your own, plus any a housemate used here; those used here come first.
+  const pickerCategories: PickerOption[] = [...categories, ...items.map((item) => item.category).filter((category): category is PickerOption => !!category)]
+    .filter((category, index, every) => every.findIndex((other) => other.id === category.id) === index);
+  const inUse = items.map((item) => item.category_id).filter((id): id is string => !!id);
 
   const confirmRemove = (item: DisplayItem) => Alert.alert(`Remove ${item.product?.name ?? 'this item'}?`, 'It is taken off this list. Your home inventory stays as it is.', [
     { text: 'Cancel', style: 'cancel' },
@@ -91,7 +97,7 @@ export default function ListDetail() {
     {role === 'editor' && <Text style={{ color: palette.muted }}>Editors can add items and budgets. Partners and the owner confirm purchases.</Text>}
     {items.length === 0 && <EmptyState title="No items yet" message={canEdit ? 'Add what you need and set a budget for each item.' : 'Items added to this list will appear here.'}/>}
     {sections.map((section) => <View key={section.name} style={{ gap: 10 }}>
-      {sections.length > 1 && <Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>{section.name.toUpperCase()}</Text>}
+      {(sections.length > 1 || section.name !== 'General') && <Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>{section.name.toUpperCase()}</Text>}
       <Grid gap={10}>{section.items.map((item) => <Card key={item.id}><View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
         <Pressable disabled={!canEdit} onPress={() => setEditing(item)} style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><Text style={{ color: palette.ink, fontSize: 16, fontWeight: '800', flexShrink: 1 }}>{item.product?.name ?? 'Item'}</Text><QuantityBadge isBulk={item.is_bulk}/></View>
@@ -110,8 +116,8 @@ export default function ListDetail() {
     {role === 'owner' && <Button label="Archive list" variant="danger" icon="archive-outline" onPress={confirmArchive}/>}
     {features.activityFeed && <ActivityFeed entries={activity}/>}
 
-    <AddItemSheet visible={adding} onClose={() => setAdding(false)} list={list} categories={categories} userId={userId} onAdded={state.reload}/>
-    <EditItemSheet item={editing} list={list} categories={categories} onClose={() => setEditing(null)} onChanged={state.reload}/>
+    <AddItemSheet visible={adding} onClose={() => setAdding(false)} list={list} categories={pickerCategories} inUse={inUse} userId={userId} onAdded={state.reload} onCategoryCreated={state.reload}/>
+    <EditItemSheet item={editing} list={list} categories={pickerCategories} inUse={inUse} userId={userId} onClose={() => setEditing(null)} onChanged={state.reload} onCategoryCreated={state.reload}/>
     <PurchaseSheet item={buying} listId={list.id} currencyCode={code} onClose={() => setBuying(null)} onPurchased={state.reload}/>
     <DuplicateSheet visible={duplicating} list={list} onClose={() => setDuplicating(false)}/>
     <ListSettingsSheet visible={configuring} list={list} categories={categories} isOwner={role === 'owner'} hasItems={items.length > 0} onClose={() => setConfiguring(false)} onChanged={state.reload}/>
@@ -129,7 +135,9 @@ function CategoryChips({ categories, value, onChange, defaultLabel }: { categori
     </ScrollView></View>;
 }
 
-function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: { visible: boolean; onClose: () => void; list: ListWithContext; categories: Category[]; userId: string; onAdded: () => void }) {
+function AddItemSheet({ visible, onClose, list, categories, inUse, userId, onAdded, onCategoryCreated }: {
+  visible: boolean; onClose: () => void; list: ListWithContext; categories: PickerOption[]; inUse: string[]; userId: string; onAdded: () => void; onCategoryCreated: () => void;
+}) {
   const currencyCode = list.currency_code;
   const { submit, newId } = useOffline();
   const [name, setName] = useState(''); const [productId, setProductId] = useState<string>(); const [quantity, setQuantity] = useState('1'); const [price, setPrice] = useState('');
@@ -137,6 +145,8 @@ function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: {
   const [matches, setMatches] = useState<{ id: string; name: string }[]>([]);
   const [suggestion, setSuggestion] = useState<PriceSuggestion | null>(null);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
+  // Nothing picked means General.
+  const selected = categoryId ?? generalCategory(categories)?.id ?? null;
   useEffect(() => { if (!visible) { setName(''); setProductId(undefined); setQuantity('1'); setPrice(''); setCategoryId(null); setIsBulk(false); setUnit(''); setMatches([]); setSuggestion(null); setError(undefined); } }, [visible]);
   // Product suggestions while typing; hidden once a suggestion is chosen.
   useEffect(() => {
@@ -170,9 +180,9 @@ function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: {
     const productName = name.trim();
     const unitName = unit.trim() || null;
     try {
-      await submit({ kind: 'addItem', listId: list.id, label: `Add ${productName}`, itemId, productName, productId, quantity: count, unit: unitName, isBulk, budgetedUnitPrice: amount, categoryId,
-        categoryName: categories.find((category) => category.id === categoryId)?.name ?? null },
-      () => addItem(userId, { id: itemId, listId: list.id, productName, productId, quantity: count, unit: unitName ?? undefined, isBulk, budgetedUnitPrice: amount, categoryId }));
+      await submit({ kind: 'addItem', listId: list.id, label: `Add ${productName}`, itemId, productName, productId, quantity: count, unit: unitName, isBulk, budgetedUnitPrice: amount, categoryId: selected,
+        categoryName: categories.find((category) => category.id === selected)?.name ?? null },
+      () => addItem(userId, { id: itemId, listId: list.id, productName, productId, quantity: count, unit: unitName ?? undefined, isBulk, budgetedUnitPrice: amount, categoryId: selected }));
       onAdded(); onClose();
     } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
   };
@@ -192,13 +202,15 @@ function AddItemSheet({ visible, onClose, list, categories, userId, onAdded }: {
     </View>
     <UnitField value={unit} onChange={setUnit}/>
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
-    {features.customCategories && <CategoryChips categories={categories} value={categoryId} onChange={setCategoryId} defaultLabel={list.category ? `Same as list (${list.category.name})` : 'None'}/>}
+    <CategoryPicker categories={categories} inUse={inUse} value={selected} onChange={setCategoryId} userId={userId} onCreated={onCategoryCreated}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Add to list" onPress={save} loading={busy}/>
   </Sheet>;
 }
 
-function EditItemSheet({ item, list, categories, onClose, onChanged }: { item: ListItem | null; list: ListWithContext; categories: Category[]; onClose: () => void; onChanged: () => void }) {
+function EditItemSheet({ item, list, categories, inUse, userId, onClose, onChanged, onCategoryCreated }: {
+  item: ListItem | null; list: ListWithContext; categories: PickerOption[]; inUse: string[]; userId: string; onClose: () => void; onChanged: () => void; onCategoryCreated: () => void;
+}) {
   const currencyCode = list.currency_code;
   const { submit } = useOffline();
   const [quantity, setQuantity] = useState(''); const [price, setPrice] = useState(''); const [categoryId, setCategoryId] = useState<string | null>(null); const [isBulk, setIsBulk] = useState(false); const [unit, setUnit] = useState('');
@@ -212,8 +224,6 @@ function EditItemSheet({ item, list, categories, onClose, onChanged }: { item: L
     const categoryName = categories.find((category) => category.id === categoryId)?.name ?? null;
     run(async () => { await submit({ kind: 'updateItem', listId: list.id, label: `Edit ${item.product?.name ?? 'item'}`, itemId: item.id, changes, categoryName }, () => updateItem(item.id, changes)); });
   };
-  // A collaborator's custom category stays selectable on items that already use it.
-  const choices: CategoryOption[] = item?.category && !categories.some((category) => category.id === item.category?.id) ? [...categories, item.category] : categories;
   return <Sheet visible={!!item} title={item?.product?.name ?? 'Item'} subtitle="Edit item" onClose={onClose}>
     <View style={{ flexDirection: 'row', gap: 10 }}>
       <View style={{ width: 96 }}><Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/></View>
@@ -221,7 +231,7 @@ function EditItemSheet({ item, list, categories, onClose, onChanged }: { item: L
     </View>
     <UnitField value={unit} onChange={setUnit}/>
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
-    {features.customCategories && <CategoryChips categories={choices} value={categoryId} onChange={setCategoryId} defaultLabel={list.category ? `Same as list (${list.category.name})` : 'None'}/>}
+    <CategoryPicker categories={categories} inUse={inUse} value={categoryId ?? generalCategory(categories)?.id ?? null} onChange={setCategoryId} userId={userId} onCreated={onCategoryCreated}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Save" onPress={save} loading={busy}/>
     {features.priceInsights && item?.product && <Button label="Price history" variant="soft" icon="trending-up-outline" onPress={() => { const productId = item.product?.id; onClose(); if (productId) router.push(`/product/${productId}`); }}/>}

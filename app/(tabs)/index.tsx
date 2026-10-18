@@ -63,6 +63,8 @@ export default function Home() {
   // Defaults, your own, and any a housemate used in this home.
   const categories = [...(categoryList.data ?? []), ...all.map((item) => item.category).filter((category): category is CategoryOption => !!category)]
     .filter((category, index, every) => every.findIndex((other) => other.id === category.id) === index);
+  // Shown first in the category picker: the categories this home already uses.
+  const inUse = all.map((item) => item.category_id).filter((id): id is string => !!id);
   const row = (item: DisplayHomeItem) => <ItemRow key={item.id} item={item} currencyCode={home.currency_code} canEdit={canEdit} busy={marking === item.id} onMark={(status) => mark(item, status)} onEdit={() => setEditing(item)}/>;
   // Lists with something still to buy; finished lists stay on the To-buy tab.
   const toBuy = (lists.data ?? []).filter((list) => (list.totals?.purchased_count ?? 0) < (list.totals?.item_count ?? 0));
@@ -118,8 +120,8 @@ export default function Home() {
           {stocked.length > 0 && <Section title="In stock" items={stocked} render={row}/>}
         </Grid>
       </>}
-    <AddItemSheet visible={adding} homeId={home.id} userId={userId} categories={categories} onCategoryCreated={categoryList.reload} onClose={() => setAdding(false)} onAdded={items.reload}/>
-    <EditItemSheet item={editing} userId={userId} categories={categories} onCategoryCreated={categoryList.reload} onClose={() => setEditing(null)} onChanged={items.reload}/>
+    <AddItemSheet visible={adding} homeId={home.id} userId={userId} categories={categories} inUse={inUse} onCategoryCreated={categoryList.reload} onClose={() => setAdding(false)} onAdded={items.reload}/>
+    <EditItemSheet item={editing} userId={userId} categories={categories} inUse={inUse} onCategoryCreated={categoryList.reload} onClose={() => setEditing(null)} onChanged={items.reload}/>
     <RestockSheet restock={restock} onClose={() => setRestock(null)} onChanged={lists.reload}/>
   </Screen>;
 }
@@ -212,8 +214,8 @@ function CreateHome({ onCreated }: { onCreated: () => void }) {
   </>;
 }
 
-function AddItemSheet({ visible, homeId, userId, categories, onCategoryCreated, onClose, onAdded }: {
-  visible: boolean; homeId: string; userId: string; categories: CategoryOption[]; onCategoryCreated: (category: Category) => void; onClose: () => void; onAdded: () => void;
+function AddItemSheet({ visible, homeId, userId, categories, inUse, onCategoryCreated, onClose, onAdded }: {
+  visible: boolean; homeId: string; userId: string; categories: CategoryOption[]; inUse: string[]; onCategoryCreated: (category: Category) => void; onClose: () => void; onAdded: () => void;
 }) {
   const [name, setName] = useState(''); const [quantity, setQuantity] = useState('1'); const [isBulk, setIsBulk] = useState(false); const [unit, setUnit] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -240,14 +242,14 @@ function AddItemSheet({ visible, homeId, userId, categories, onCategoryCreated, 
     <Field label="Full quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" note="How many you buy to fill up, e.g. 1 bag or 4 bars. Updated each time you buy it."/>
     <UnitField value={unit} onChange={setUnit}/>
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
-    <CategoryPicker categories={categories} value={selected} onChange={setCategoryId} userId={userId} onCreated={onCategoryCreated}/>
+    <CategoryPicker categories={categories} inUse={inUse} value={selected} onChange={setCategoryId} userId={userId} onCreated={onCategoryCreated}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Add item" onPress={add} loading={busy}/>
   </Sheet>;
 }
 
-function EditItemSheet({ item, userId, categories, onCategoryCreated, onClose, onChanged }: {
-  item: HomeItem | null; userId: string; categories: CategoryOption[]; onCategoryCreated: (category: Category) => void; onClose: () => void; onChanged: () => void;
+function EditItemSheet({ item, userId, categories, inUse, onCategoryCreated, onClose, onChanged }: {
+  item: HomeItem | null; userId: string; categories: CategoryOption[]; inUse: string[]; onCategoryCreated: (category: Category) => void; onClose: () => void; onChanged: () => void;
 }) {
   const [quantity, setQuantity] = useState(''); const [unit, setUnit] = useState(''); const [isBulk, setIsBulk] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -265,7 +267,7 @@ function EditItemSheet({ item, userId, categories, onCategoryCreated, onClose, o
   return <Sheet visible={!!item} title={item?.product?.name ?? 'Item'} onClose={onClose}>
     <Field label="Full quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/>
     <UnitField value={unit} onChange={setUnit}/>
-    <CategoryPicker categories={categories} value={categoryId ?? generalCategory(categories)?.id ?? null} onChange={setCategoryId} userId={userId} onCreated={onCategoryCreated}/>
+    <CategoryPicker categories={categories} inUse={inUse} value={categoryId ?? generalCategory(categories)?.id ?? null} onChange={setCategoryId} userId={userId} onCreated={onCategoryCreated}/>
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Save" onPress={save} loading={busy}/>
