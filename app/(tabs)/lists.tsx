@@ -4,6 +4,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { features } from '@/src/features';
 import { ListCard } from '@/src/ListCard';
+import { SelectionBar, useListSelection } from '@/src/ListSelection';
 import { formatCurrency } from '@/src/currency';
 import { fetchLists, leftToBuy } from '@/src/services/lists';
 import { watchLists } from '@/src/services/realtime';
@@ -20,7 +21,9 @@ export default function Lists() {
   const homeId = features.multipleHomes ? undefined : home?.id;
   const lists = useAsync(async () => (features.multipleHomes || homeId ? fetchLists({ groupId: homeId }) : []), [homeId], { cacheKey: `lists:${homeId ?? 'all'}` });
   useLive(watchLists, lists.reload, []);
-  usePrefetchListDetails(lists, useUserId());
+  const userId = useUserId();
+  usePrefetchListDetails(lists, userId);
+  const selection = useListSelection(userId, lists.reload);
   // Total still to buy across lists, one line per currency (amounts in different currencies are never added).
   const toBuy = Object.entries((lists.data ?? []).reduce<Record<string, number>>((all, list) => ({ ...all, [list.currency_code]: (all[list.currency_code] ?? 0) + leftToBuy(list.totals) }), {}));
   const itemsLeft = (lists.data ?? []).reduce((sum, list) => sum + (list.totals?.item_count ?? 0) - (list.totals?.purchased_count ?? 0), 0);
@@ -29,6 +32,7 @@ export default function Lists() {
   return <Screen refreshing={lists.loading && !!lists.data} onRefresh={lists.reload}>
     <Heading title="To buy" subtitle={home ? home.name : 'Your shopping lists'}
       action={<View style={{ flexDirection: 'row', gap: 8 }}>
+        {!!lists.data?.length && !selection.selecting && <IconButton icon="checkbox-outline" label="Select lists to delete" onPress={() => selection.start()}/>}
         {features.priceInsights && <IconButton icon="pricetags-outline" label="Price book" onPress={() => router.push('/prices')}/>}
         {(features.multipleHomes || homeId) && <IconButton icon="add" label="New list" onPress={newList}/>}
       </View>}/>
@@ -42,7 +46,10 @@ export default function Lists() {
     </Card>}
     {lists.error ? <ErrorNotice error={lists.error} onRetry={lists.reload}/> : !lists.data ? <Loading/> : lists.data.length === 0
       ? (home !== null && <EmptyState title="No lists yet" message="Mark items as running low on the Home tab, or create a list for a shopping trip."/>)
-      : <Grid>{lists.data.map((list) => <ListCard key={list.id} list={list} showGroup={features.multipleHomes}/>)}</Grid>}
+      : <>
+        {selection.selecting && <SelectionBar selection={selection}/>}
+        <Grid>{lists.data.map((list) => <ListCard key={list.id} list={list} showGroup={features.multipleHomes} {...selection.cardProps(list)}/>)}</Grid>
+      </>}
     {(features.multipleHomes || homeId) && <Button label="New list" icon="add-circle-outline" variant="soft" onPress={newList}/>}
   </Screen>;
 }

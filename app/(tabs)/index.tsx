@@ -5,6 +5,7 @@ import { formatCurrency, parseAmount } from '@/src/currency';
 import { features } from '@/src/features';
 import { CategoryOption, CategoryPicker, generalCategory } from '@/src/CategoryPicker';
 import { ListCard } from '@/src/ListCard';
+import { SelectionBar, useListSelection } from '@/src/ListSelection';
 import { usePrefetchListDetails } from '@/src/listDetail';
 import { useOffline } from '@/src/offline/OfflineProvider';
 import { applyHomeQueue, DisplayHomeItem, homeListId } from '@/src/offline/queue';
@@ -47,6 +48,10 @@ export default function Home() {
   // After something is marked low or finished: how much to restock (the To-buy entry it was put on).
   const [restock, setRestock] = useState<{ entry: ListItem; name: string } | null>(null);
   const categoryList = useAsync(() => fetchCategories(userId), [userId], { cacheKey: 'categories' });
+  // A category created in a sheet is shown (and named on the item) straight away, before the list reloads.
+  const [created, setCreated] = useState<Category[]>([]);
+  const onCategoryCreated = (category: Category) => { setCreated((all) => [...all, category]); categoryList.reload(); };
+  const selection = useListSelection(userId, lists.reload);
   // Changes made offline show straight away and are replaced by server state once they sync.
   const { ops, syncedVersion, submit } = useOffline();
   const { reload: reloadItems } = items; const { reload: reloadLists } = lists;
@@ -61,7 +66,7 @@ export default function Home() {
   const needed = all.filter((item) => item.status !== 'in_stock').sort((a, b) => (a.status === b.status ? 0 : a.status === 'out' ? -1 : 1));
   const stocked = all.filter((item) => item.status === 'in_stock');
   // Defaults, your own, and any a housemate used in this home.
-  const categories = [...(categoryList.data ?? []), ...all.map((item) => item.category).filter((category): category is CategoryOption => !!category)]
+  const categories = [...(categoryList.data ?? []), ...created, ...all.map((item) => item.category).filter((category): category is CategoryOption => !!category)]
     .filter((category, index, every) => every.findIndex((other) => other.id === category.id) === index);
   // Shown first in the category picker: the categories this home already uses.
   const inUse = all.map((item) => item.category_id).filter((id): id is string => !!id);
@@ -106,9 +111,14 @@ export default function Home() {
       {notice.listId && <Text onPress={() => router.push(`/list/${notice.listId}`)} style={{ color: palette.green, fontWeight: '800', marginTop: 6 }}>Open To-buy list</Text>}
     </Card>}
     {toBuy.length > 0 && <View style={{ gap: 8 }}>
-      <Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>TO BUY</Text>
-      <Grid>{toBuy.slice(0, homeListLimit).map((list) => <ListCard key={list.id} list={list} showGroup={false}/>)}</Grid>
-      {toBuy.length > homeListLimit && <Button label={`View ${toBuy.length - homeListLimit} more ${toBuy.length - homeListLimit === 1 ? 'list' : 'lists'}`} variant="soft" icon="chevron-forward" onPress={() => router.navigate('/lists')}/>}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>TO BUY</Text>
+        {!selection.selecting && <Text accessibilityRole="button" onPress={() => selection.start()} style={{ color: palette.green, fontWeight: '800', fontSize: 13 }}>Select</Text>}
+      </View>
+      {selection.selecting && <SelectionBar selection={selection}/>}
+      {/* While selecting, every list is shown so several can be deleted from here. */}
+      <Grid>{(selection.selecting ? toBuy : toBuy.slice(0, homeListLimit)).map((list) => <ListCard key={list.id} list={list} showGroup={false} {...selection.cardProps(list)}/>)}</Grid>
+      {!selection.selecting && toBuy.length > homeListLimit && <Button label={`View ${toBuy.length - homeListLimit} more ${toBuy.length - homeListLimit === 1 ? 'list' : 'lists'}`} variant="soft" icon="chevron-forward" onPress={() => router.navigate('/lists')}/>}
     </View>}
     {items.error ? <ErrorNotice error={items.error} onRetry={items.reload}/> : !items.data ? <Loading/> : all.length === 0
       ? <EmptyState title="What do you keep at home?" message="Add the things your household buys regularly, like rice, oil, soap, or toothpaste. Mark them when they run low and they go straight onto your To-buy list."
@@ -120,8 +130,8 @@ export default function Home() {
           {stocked.length > 0 && <Section title="In stock" items={stocked} render={row}/>}
         </Grid>
       </>}
-    <AddItemSheet visible={adding} homeId={home.id} userId={userId} categories={categories} inUse={inUse} onCategoryCreated={categoryList.reload} onClose={() => setAdding(false)} onAdded={items.reload}/>
-    <EditItemSheet item={editing} userId={userId} categories={categories} inUse={inUse} onCategoryCreated={categoryList.reload} onClose={() => setEditing(null)} onChanged={items.reload}/>
+    <AddItemSheet visible={adding} homeId={home.id} userId={userId} categories={categories} inUse={inUse} onCategoryCreated={onCategoryCreated} onClose={() => setAdding(false)} onAdded={items.reload}/>
+    <EditItemSheet item={editing} userId={userId} categories={categories} inUse={inUse} onCategoryCreated={onCategoryCreated} onClose={() => setEditing(null)} onChanged={items.reload}/>
     <RestockSheet restock={restock} onClose={() => setRestock(null)} onChanged={lists.reload}/>
   </Screen>;
 }

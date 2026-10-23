@@ -422,7 +422,7 @@ export type Database = {
           budgeted_unit_price: number;
           category_id: string | null;
           created_at: string;
-          created_by: string;
+          created_by: string | null;
           id: string;
           is_bulk: boolean;
           list_id: string;
@@ -439,7 +439,7 @@ export type Database = {
           budgeted_unit_price: number;
           category_id?: string | null;
           created_at?: string;
-          created_by: string;
+          created_by?: string | null;
           id?: string;
           is_bulk?: boolean;
           list_id: string;
@@ -456,7 +456,7 @@ export type Database = {
           budgeted_unit_price?: number;
           category_id?: string | null;
           created_at?: string;
-          created_by?: string;
+          created_by?: string | null;
           id?: string;
           is_bulk?: boolean;
           list_id?: string;
@@ -756,7 +756,7 @@ export type Database = {
           product_id: string;
           purchase_id: string;
           purchased_at: string;
-          user_id: string;
+          user_id: string | null;
         };
         Insert: {
           created_at?: string;
@@ -766,7 +766,7 @@ export type Database = {
           product_id: string;
           purchase_id: string;
           purchased_at: string;
-          user_id: string;
+          user_id?: string | null;
         };
         Update: {
           created_at?: string;
@@ -776,7 +776,7 @@ export type Database = {
           product_id?: string;
           purchase_id?: string;
           purchased_at?: string;
-          user_id?: string;
+          user_id?: string | null;
         };
         Relationships: [
           {
@@ -817,7 +817,7 @@ export type Database = {
           id: string;
           name: string;
           notes: string | null;
-          owner_id: string;
+          owner_id: string | null;
           updated_at: string;
         };
         Insert: {
@@ -827,7 +827,7 @@ export type Database = {
           id?: string;
           name: string;
           notes?: string | null;
-          owner_id: string;
+          owner_id?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -837,7 +837,7 @@ export type Database = {
           id?: string;
           name?: string;
           notes?: string | null;
-          owner_id?: string;
+          owner_id?: string | null;
           updated_at?: string;
         };
         Relationships: [
@@ -899,7 +899,7 @@ export type Database = {
           purchased_amount: number;
           purchased_at: string;
           quantity: number;
-          user_id: string;
+          user_id: string | null;
         };
         Insert: {
           budgeted_amount: number;
@@ -915,7 +915,7 @@ export type Database = {
           purchased_amount: number;
           purchased_at?: string;
           quantity: number;
-          user_id: string;
+          user_id?: string | null;
         };
         Update: {
           budgeted_amount?: number;
@@ -931,7 +931,7 @@ export type Database = {
           purchased_amount?: number;
           purchased_at?: string;
           quantity?: number;
-          user_id?: string;
+          user_id?: string | null;
         };
         Relationships: [
           {
@@ -1447,6 +1447,7 @@ export type Database = {
         };
       };
       current_confirmed_email: { Args: Record<PropertyKey, never>; Returns: string };
+      delete_account: { Args: Record<PropertyKey, never>; Returns: undefined };
       duplicate_list: {
         Args: { new_name?: string; source_list_id: string };
         Returns: {
@@ -1525,7 +1526,7 @@ export type Database = {
           budgeted_unit_price: number;
           category_id: string | null;
           created_at: string;
-          created_by: string;
+          created_by: string | null;
           id: string;
           list_id: string;
           notes: string | null;
@@ -1586,7 +1587,7 @@ export type Database = {
           purchased_amount: number;
           purchased_at: string;
           quantity: number;
-          user_id: string;
+          user_id: string | null;
         };
         SetofOptions: {
           from: '*';
@@ -1631,7 +1632,7 @@ export type Database = {
           id: string;
           name: string;
           notes: string | null;
-          owner_id: string;
+          owner_id: string | null;
           updated_at: string;
         }[];
         SetofOptions: {

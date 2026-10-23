@@ -32,6 +32,17 @@ export async function signOut() {
   if (error) throw toServiceError(error);
 }
 
+/**
+ * Deletes the account for good: shared homes and lists pass to the next member, everything nobody else uses is deleted.
+ * Then signs out on this phone only (the session no longer exists on the server).
+ */
+export async function deleteAccount() {
+  const client = getSupabaseClient();
+  const { error } = await client.rpc('delete_account');
+  if (error) throw toServiceError(error);
+  await client.auth.signOut({ scope: 'local' });
+}
+
 export async function requestPasswordReset(email: string) {
   const { error } = await getSupabaseClient().auth.resetPasswordForEmail(email.trim(), { redirectTo: authRedirectUrl('reset-password') });
   if (error) throw toServiceError(error);
