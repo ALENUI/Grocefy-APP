@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { formatCurrency, parseAmount } from '@/src/currency';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { amountInputValue, formatCurrency, parseAmount } from '@/src/currency';
 import { features } from '@/src/features';
 import { CategoryOption, CategoryPicker, generalCategory } from '@/src/CategoryPicker';
 import { ListCard } from '@/src/ListCard';
@@ -13,14 +13,15 @@ import { priceUnit, quantityLabel, QuantityTypeChips, UnitField } from '@/src/qu
 import { friendlyError } from '@/src/services/errors';
 import { addHomeItem, archiveHomeItem, createHome, fetchHomeItems, fetchMonthSpending, HomeItem, markHomeItem, StockStatus, updateHomeItem } from '@/src/services/home';
 import { Category, fetchCategories } from '@/src/services/categories';
-import { fetchLists, ListItem, updateItem } from '@/src/services/lists';
+import { createList, fetchLists, ListWithContext, updateItem } from '@/src/services/lists';
+import { GroupSummary } from '@/src/services/groups';
 import { watchHome, watchInbox, watchLists } from '@/src/services/realtime';
 import { fetchInbox } from '@/src/services/sharing';
 import { useSession, useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
 import { useHome } from '@/src/useHome';
 import { useLive } from '@/src/useLive';
-import { Button, Card, CurrencyPicker, EmptyState, ErrorNotice, Field, Grid, Heading, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
+import { Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, Grid, Heading, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
 
 const statusLabel: Record<StockStatus, string> = { in_stock: 'Full', low: 'Low', out: 'Finished' };
 // Home shows the first few To-buy lists; the rest are one tap away on the To-buy tab.
@@ -45,8 +46,8 @@ export default function Home() {
   const [editing, setEditing] = useState<HomeItem | null>(null);
   const [notice, setNotice] = useState<{ text: string; listId?: string; error?: boolean }>();
   const [marking, setMarking] = useState<string>();
-  // After something is marked low or finished: how much to restock (the To-buy entry it was put on).
-  const [restock, setRestock] = useState<{ entry: ListItem; name: string } | null>(null);
+  // A full item being marked low or finished: which list it goes on, and how much at what price.
+  const [restock, setRestock] = useState<{ item: HomeItem; status: StockStatus } | null>(null);
   const categoryList = useAsync(() => fetchCategories(userId), [userId], { cacheKey: 'categories' });
   // A category created in a sheet is shown (and named on the item) straight away, before the list reloads.
   const [created, setCreated] = useState<Category[]>([]);
@@ -76,6 +77,9 @@ export default function Home() {
 
   const mark = async (item: HomeItem, status: StockStatus) => {
     if (item.status === status) return;
+    // Running low or out from full: choose the list, category, quantity, and price first. Between low and finished
+    // (already on a list) the status just changes.
+    if (item.status === 'in_stock' && canEdit) { setNotice(undefined); setRestock({ item, status }); return; }
     setMarking(item.id); setNotice(undefined);
     try {
       const name = item.product?.name ?? 'Item';
@@ -85,10 +89,7 @@ export default function Home() {
         setNotice(status === 'in_stock' ? undefined : { text: `Saved on this phone. ${name} goes on your To-buy list when you are back online.` });
         return;
       }
-      const entry = result.value;
       await Promise.all([items.reload(), lists.reload()]);
-      setNotice(entry ? { text: `${item.product?.name ?? 'Item'} is on your To-buy list${entry.budgeted_unit_price > 0 ? ` at ${formatCurrency(entry.budgeted_unit_price, home.currency_code)}` : ''}.`, listId: entry.list_id } : undefined);
-      if (entry && entry.status === 'pending') setRestock({ entry: entry as ListItem, name: item.product?.name ?? 'Item' });
     } catch (caught) { setNotice({ text: friendlyError(caught), error: true }); } finally { setMarking(undefined); }
   };
 
@@ -132,7 +133,8 @@ export default function Home() {
       </>}
     <AddItemSheet visible={adding} homeId={home.id} userId={userId} categories={categories} inUse={inUse} onCategoryCreated={onCategoryCreated} onClose={() => setAdding(false)} onAdded={items.reload}/>
     <EditItemSheet item={editing} userId={userId} categories={categories} inUse={inUse} onCategoryCreated={onCategoryCreated} onClose={() => setEditing(null)} onChanged={items.reload}/>
-    <RestockSheet restock={restock} onClose={() => setRestock(null)} onChanged={lists.reload}/>
+    <RestockSheet restock={restock} home={home} userId={userId} lists={lists.data ?? []} categories={categories} inUse={inUse} onCategoryCreated={onCategoryCreated}
+      onClose={() => setRestock(null)} onDone={(text, listId) => { setNotice({ text, listId }); items.reload(); lists.reload(); }}/>
   </Screen>;
 }
 
@@ -151,32 +153,89 @@ function Section({ title, items, render }: { title: string; items: DisplayHomeIt
     </View>)}</Card></View>;
 }
 
-/** Asked after an item goes on the To-buy list: keep the quantity bought last time, or change it for this trip. */
-function RestockSheet({ restock, onClose, onChanged }: { restock: { entry: ListItem; name: string } | null; onClose: () => void; onChanged: () => void }) {
+/**
+ * Marking a full item low or finished: the list it goes on (one of the home's lists, or a new one), its category, and
+ * how much to buy at what price. Quantity and price apply to this trip only; the home keeps its full quantity.
+ */
+function RestockSheet({ restock, home, userId, lists, categories, inUse, onCategoryCreated, onClose, onDone }: {
+  restock: { item: HomeItem; status: StockStatus } | null; home: GroupSummary; userId: string; lists: ListWithContext[]; categories: CategoryOption[]; inUse: string[];
+  onCategoryCreated: (category: Category) => void; onClose: () => void; onDone: (notice: string, listId?: string) => void;
+}) {
   const { submit } = useOffline();
-  const [quantity, setQuantity] = useState(''); const [unit, setUnit] = useState(''); const [isBulk, setIsBulk] = useState(false);
+  const code = home.currency_code;
+  // Only owners and partners may add lists to a home.
+  const canCreateList = home.role === 'owner' || home.role === 'partner';
+  // The oldest list first, as the server picks it by default.
+  const choices = [...lists].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const [listId, setListId] = useState<string | null>(null); const [newList, setNewList] = useState('');
+  const [quantity, setQuantity] = useState(''); const [unit, setUnit] = useState(''); const [isBulk, setIsBulk] = useState(false); const [price, setPrice] = useState('');
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
-  const entry = restock?.entry;
-  useEffect(() => { if (entry) { setQuantity(String(Number(entry.quantity))); setUnit(entry.unit ?? ''); setIsBulk(entry.is_bulk); setError(undefined); } }, [entry]);
-  const update = async () => {
+  const item = restock?.item;
+  useEffect(() => {
+    if (!item) return;
+    setListId(choices[0]?.id ?? null); setNewList('');
+    setQuantity(String(Number(item.usual_quantity))); setUnit(item.unit ?? ''); setIsBulk(item.is_bulk);
+    setPrice(item.lastPrice !== null ? amountInputValue(item.lastPrice, code) : ''); setCategoryId(item.category_id); setError(undefined);
+  }, [item]); // eslint-disable-line react-hooks/exhaustive-deps -- reset only when a new item opens the sheet
+  const creating = listId === null && canCreateList;
+
+  const confirm = async () => {
+    if (!item || !restock) return;
+    const name = item.product?.name ?? 'Item';
     const count = parseAmount(quantity.replace(',', '.'), 'USD');
-    if (!entry || count === null || count <= 0) return setError('Enter how many to buy.');
-    const changes = { quantity: count, unit: unit.trim() || null, isBulk };
+    if (count === null || count <= 0) return setError('Enter how many to buy.');
+    const amount = price.trim() ? parseAmount(price, code) : null;
+    if (price.trim() && amount === null) return setError(`Enter a valid price in ${code}.`);
+    if (creating && !newList.trim()) return setError('Give the new list a name.');
     setBusy(true); setError(undefined);
     try {
-      await submit({ kind: 'updateItem', listId: entry.list_id, label: `Restock ${restock?.name ?? 'item'}`, itemId: entry.id, changes }, () => updateItem(entry.id, changes));
-      onChanged(); onClose();
+      const targetId = creating ? (await createList({ ownerId: userId, name: newList.trim(), currencyCode: code, groupId: home.id })).id : listId ?? undefined;
+      const targetName = creating ? newList.trim() : choices.find((list) => list.id === targetId)?.name ?? 'your list';
+      // The category is the home item's; its list entries follow it (also the one created next).
+      if (categoryId && categoryId !== item.category_id) {
+        const changes = { categoryId };
+        await submit({ kind: 'updateHomeItem', listId: homeListId(home.id), label: `Edit ${name}`, itemId: item.id, changes, categoryName: categories.find((category) => category.id === categoryId)?.name ?? null },
+          () => updateHomeItem(item.id, changes));
+      }
+      const result = await submit({ kind: 'markHomeItem', listId: homeListId(home.id), label: `Mark ${name} ${statusLabel[restock.status].toLowerCase()}`, itemId: item.id, status: restock.status, targetListId: targetId },
+        () => markHomeItem(item.id, restock.status, targetId));
+      if (result.queued) { onDone(`Saved on this phone. ${name} goes on ${targetName} when you are back online.`); onClose(); return; }
+      const entry = result.value;
+      if (entry?.status === 'pending') {
+        const changes = {
+          ...(count !== Number(entry.quantity) ? { quantity: count } : {}), ...((unit.trim() || null) !== entry.unit ? { unit: unit.trim() || null } : {}),
+          ...(isBulk !== entry.is_bulk ? { isBulk } : {}), ...(amount !== null && amount !== entry.budgeted_unit_price ? { budgetedUnitPrice: amount } : {})
+        };
+        if (Object.keys(changes).length) await submit({ kind: 'updateItem', listId: entry.list_id, label: `Restock ${name}`, itemId: entry.id, changes }, () => updateItem(entry.id, changes));
+        const already = entry.list_id !== targetId && targetId !== undefined;
+        const shownPrice = amount ?? entry.budgeted_unit_price;
+        onDone(already ? `${name} was already on ${lists.find((list) => list.id === entry.list_id)?.name ?? 'another list'}; it was updated there.`
+          : `${name} is on ${targetName}${shownPrice > 0 ? ` at ${formatCurrency(shownPrice, code)} ${priceUnit(isBulk, unit.trim())}` : ''}.`, entry.list_id);
+      } else onDone(`${name} is marked ${statusLabel[restock.status].toLowerCase()}.`);
+      onClose();
     } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); }
   };
-  const last = entry ? quantityLabel(entry) : '';
-  return <Sheet visible={!!restock} title={`Restock ${restock?.name ?? ''}`} subtitle="It is on your To-buy list. How much should be bought?" onClose={onClose}>
-    <Button label={`Keep ${last}`} icon="checkmark" onPress={onClose}/>
-    <Text style={{ color: palette.muted, textAlign: 'center' }}>or change it for this trip</Text>
-    <Field label="Quantity to buy" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/>
+
+  return <Sheet visible={!!restock} title={`${item?.product?.name ?? 'Item'} · ${restock ? statusLabel[restock.status] : ''}`} subtitle="Add it to a list for the next shopping trip." onClose={onClose}>
+    {(choices.length > 0 || canCreateList) && <View style={styles.field}>
+      <Text style={styles.label}>Add to list</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8 }}>
+        {choices.map((list) => <Chip key={list.id} label={list.name} selected={listId === list.id} onPress={() => setListId(list.id)}/>)}
+        {canCreateList && <Chip label="+ New list" selected={creating} onPress={() => setListId(null)}/>}
+      </ScrollView>
+      {creating && <Field label="New list name" value={newList} onChangeText={setNewList} hint="e.g. Market Saturday" autoCapitalize="words"/>}
+    </View>}
+    <CategoryPicker categories={categories} inUse={inUse} value={categoryId ?? generalCategory(categories)?.id ?? null} onChange={setCategoryId} userId={userId} onCreated={onCategoryCreated}/>
+    <View style={{ flexDirection: 'row', gap: 10 }}>
+      <View style={{ width: 96 }}><Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/></View>
+      <View style={{ flex: 1 }}><Field label={`Price ${priceUnit(isBulk, unit.trim())}`} prefix={code} value={price} onChangeText={setPrice} keyboardType="decimal-pad" hint="0"
+        note={item && item.lastPrice !== null ? `Last paid ${formatCurrency(item.lastPrice, code)}` : 'No price yet'}/></View>
+    </View>
     <UnitField value={unit} onChange={setUnit}/>
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
-    <Button label="Update quantity" variant="soft" onPress={update} loading={busy}/>
+    <Button label={creating ? 'Create list and add' : 'Add to list'} icon="cart-outline" onPress={confirm} loading={busy}/>
   </Sheet>;
 }
 

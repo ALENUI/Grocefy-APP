@@ -42,7 +42,7 @@ async function send(op: QueuedOp, userId: string): Promise<Outcome> {
     } else if (op.kind === 'addHomeItem') {
       await addHomeItem(userId, op.homeId, op.name, { id: op.itemId, usualQuantity: op.usualQuantity, unit: op.unit ?? undefined, isBulk: op.isBulk, categoryId: op.categoryId });
     } else if (op.kind === 'markHomeItem') {
-      await markHomeItem(op.itemId, op.status); // the server puts low and finished items on the To-buy list
+      await markHomeItem(op.itemId, op.status, op.targetListId); // the server puts low and finished items on the chosen (else first) list
     } else if (op.kind === 'updateHomeItem') {
       await updateHomeItem(op.itemId, op.changes);
     } else if (op.kind === 'archiveHomeItem') {

@@ -11,7 +11,7 @@ export type QueuedOp = OpBase & (
   | { kind: 'removeItem'; itemId: string }
   | { kind: 'purchase'; itemId: string; clientRef: string; actualAmount: number | null; purchasedAt: string }
   | { kind: 'addHomeItem'; itemId: string; homeId: string; name: string; usualQuantity: number; unit: string | null; isBulk: boolean; categoryId: string | null; categoryName?: string | null }
-  | { kind: 'markHomeItem'; itemId: string; status: StockStatus }
+  | { kind: 'markHomeItem'; itemId: string; status: StockStatus; targetListId?: string }
   | { kind: 'updateHomeItem'; itemId: string; changes: HomeItemChanges; categoryName?: string | null }
   | { kind: 'archiveHomeItem'; itemId: string }
 );
