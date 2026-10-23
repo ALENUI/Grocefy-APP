@@ -77,6 +77,12 @@ export async function archiveList(listId: string): Promise<void> {
   unwrap(await getSupabaseClient().from('shopping_lists').update({ archived_at: new Date().toISOString() }).eq('id', listId).select('id').single());
 }
 
+/** Archives several lists at once (only their owner may). Returns the ids that could not be archived. */
+export async function archiveLists(listIds: string[]): Promise<string[]> {
+  const results = await Promise.allSettled(listIds.map((listId) => archiveList(listId)));
+  return listIds.filter((_, index) => results[index].status === 'rejected');
+}
+
 export async function fetchListItems(listId: string): Promise<ListItem[]> {
   return unwrap(await getSupabaseClient().from('list_items').select(itemSelect).eq('list_id', listId).neq('status', 'archived').order('created_at'));
 }

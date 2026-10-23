@@ -55,8 +55,8 @@ export async function addHomeItem(userId: string, homeId: string, name: string, 
   const { error } = await client.from('home_items').insert({ ...(id ? { id } : {}), group_id: homeId, product_id: product.id, usual_quantity: usualQuantity, unit, is_bulk: isBulk, category_id: categoryId ?? null });
   if (!error) return;
   if (error.code !== '23505') unwrap({ data: null, error });
-  // Already in this home: bring it back if it was archived, otherwise report it.
-  const restored = unwrap(await client.from('home_items').update({ archived_at: null }).eq('group_id', homeId).eq('product_id', product.id).not('archived_at', 'is', null).select('id'));
+  // Already in this home: bring it back if it was archived (as entered now, category included), otherwise report it.
+  const restored = unwrap(await client.from('home_items').update({ archived_at: null, status: 'in_stock', usual_quantity: usualQuantity, unit: unit ?? null, is_bulk: isBulk, category_id: categoryId ?? null }).eq('group_id', homeId).eq('product_id', product.id).not('archived_at', 'is', null).select('id'));
   if (restored.length === 0) throw new ServiceError('ALREADY_EXISTS', 'Already in your home');
 }
 
