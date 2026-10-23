@@ -14,7 +14,7 @@ function ProductPrices() {
   const state = useAsync(async () => {
     const [name, history] = await Promise.all([fetchProductName(id), fetchPriceHistory(id)]);
     return { name, history };
-  }, [id]);
+  }, [id], { cacheKey: `product:${id}` });
   if (!state.data) return <Screen><BackHeader title="Price history"/>{state.error ? <ErrorNotice error={state.error} onRetry={state.reload}/> : <Loading/>}</Screen>;
   const { name, history } = state.data;
   const byCurrency = history.reduce<Record<string, PricePoint[]>>((all, point) => ({ ...all, [point.currency_code]: [...(all[point.currency_code] ?? []), point] }), {});

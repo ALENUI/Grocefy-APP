@@ -5,18 +5,19 @@ Grocefy helps a household keep track of the groceries and everyday items it keep
 ## How it works
 
 1. **Set up your home** and add the things you buy regularly (rice, oil, soap, toothpaste…), with how many you usually buy at a time.
-2. **Mark items** as *In stock*, *Running low*, or *Finished* as you use them. Low and finished items go onto the To-buy list automatically, priced at what you paid last time, and the people you live with get a notification.
+2. **Mark items** as *Full*, *Running low*, or *Finished* as you use them. Low and finished items go onto the To-buy list automatically, priced at what you paid last time, and Grocefy asks whether to keep the quantity bought last time or change it. The people you live with get a notification. Home items are grouped by category; anything added without one goes under *General*, and you can create a new category while adding an item.
 3. **At the market**, open the To-buy list, tick each item as you buy it, and enter the amount you paid (or confirm the expected price).
 4. The price is **remembered** against the item and it goes back *In stock*. Next time it runs low, the new price is suggested.
 
 ## Features
 
 - **Home inventory:** everything the household keeps, grouped into *Needs buying* and *In stock*, with the last price paid for each item.
-- **To-buy lists:** a shared list created with the home, plus any other lists you want (e.g. a weekly market trip). Each item shows its expected price and the list shows the expected total.
+- **To-buy lists:** a shared list created with the home, plus any other lists you want (e.g. a weekly market trip). Each item shows its expected price, whether it is bought per item or in bulk packs, and the list shows the expected total. Anything added to a To-buy list also appears in the home as *Finished*. Buying it puts it back in the home as *Full*, with the quantity bought as its full quantity, which is what goes on the list the next time it runs out. Home shows the first two lists that still have items to buy.
 - **Buying and price memory:** tick an item as bought, pay the expected price or enter the actual one; the price is saved and reused. Purchases are recorded once even if the connection drops.
 - **Sharing with the people you live with:** invite them by username or email. **Members** can add items, mark what is running out, and buy; **View-only** people (for example children) can see everything without changing it. The person who created the home manages who is in it.
 - **Live updates and push notifications:** changes appear on everyone's phone without refreshing, and housemates are notified when something runs low or finishes, or is bought.
-- **Works offline:** your home and lists are saved on the phone, and changes made without signal sync when the connection returns.
+- **Phones and tablets, portrait and landscape:** content is centred at a comfortable width on large screens, and lists and the home inventory use two columns where there is room.
+- **Works offline and opens instantly:** your home, lists, and account are saved on the phone and shown the moment the app opens, then refreshed in the background. Without signal everything stays readable (every list is saved ahead of time), and changes to lists and the home inventory (adding, editing, marking, buying, removing) are kept on the phone and sync in order when the connection returns.
 - **Spent this month and purchase history:** a monthly total on the Home screen and a dated list of past purchases.
 - **Accounts:** sign up with a username, sign in, and reset a forgotten password by email.
 
@@ -115,6 +116,22 @@ supabase secrets set EXPO_ACCESS_TOKEN=<token>
 ```
 
 Push needs a physical phone and a development or production build (`eas build`). Without a project ID, Settings explains that push is not set up for that build. For local development, copy `supabase/functions/.env.example` to `supabase/functions/.env` (log providers: no emails or pushes leave the machine).
+
+7. In-app updates (Android APK). Each APK built on `main` is recorded in `app_releases`, and installed apps check it at launch and when reopened. When a newer build exists they show an "Update available" prompt whose **Update now** button opens the download, and Settings shows the installed version with a **Check for updates** button. To turn it on, deploy the function and set the same secret in Supabase and in the EAS `preview` environment:
+
+```bash
+supabase functions deploy publish-release
+supabase secrets set RELEASE_PUBLISH_SECRET=<long random string>
+eas env:create --environment preview --name RELEASE_PUBLISH_SECRET --value <same string> --visibility secret
+```
+
+To have the app download and install updates itself (instead of opening the Expo page in the browser), also give the workflow an Expo access token, so it can look up each build's direct `.apk` link. Create a robot token at expo.dev (Account settings → Access tokens, with read access to the project), then:
+
+```bash
+eas env:create --environment preview --name EXPO_RELEASE_TOKEN --value <token> --visibility secret
+```
+
+Android still shows its own Install screen (no app can replace itself silently), and the first time it asks to allow Grocefy to install updates. Only builds made after this is set up are offered. The prompt only appears in installed APKs, not in Expo Go or development builds.
 
 The migrations also create the reference data (currency registry and default categories). After a schema change, regenerate the client types with `npm run db:types`.
 

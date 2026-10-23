@@ -9,6 +9,8 @@ export type ListWithContext = ShoppingList & {
 };
 export type ListItem = Tables<'list_items'> & { product: Pick<Tables<'products'>, 'id' | 'name'> | null; category: Pick<Tables<'categories'>, 'id' | 'name'> | null };
 export type ListTotals = Views<'list_totals'>;
+/** Budget of the items still to buy (the whole budget minus what purchased items were budgeted at). */
+export const leftToBuy = (totals: ListTotals | null) => Math.max(0, (totals?.budgeted_total ?? 0) - (totals?.purchased_budgeted_total ?? 0));
 export type PriceSuggestion = {
   latestUnitPrice: number; latestCurrencyCode: string; latestPurchasedAt: string;
   /** Only set when a price exists in the requested currency; prices are never converted. */
@@ -20,8 +22,8 @@ export type CreateListInput = { ownerId: string; name: string; currencyCode: str
  * productId: a product chosen from search suggestions; otherwise the product is found or created by name.
  * id: a client-generated id, so an offline add that is retried after a dropped connection is not duplicated.
  */
-export type AddItemInput = { id?: string; listId: string; productName: string; productId?: string; quantity?: number; unit?: string; budgetedUnitPrice: number; categoryId?: string | null; notes?: string };
-export type ItemChanges = { quantity?: number; budgetedUnitPrice?: number; categoryId?: string | null };
+export type AddItemInput = { id?: string; listId: string; productName: string; productId?: string; quantity?: number; unit?: string; isBulk?: boolean; budgetedUnitPrice: number; categoryId?: string | null; notes?: string };
+export type ItemChanges = { quantity?: number; unit?: string | null; budgetedUnitPrice?: number; categoryId?: string | null; isBulk?: boolean };
 export type ListChanges = { name?: string; categoryId?: string | null; currencyCode?: string };
 
 const listSelect = '*, group:shopping_groups(id, name), category:categories(id, name)';
@@ -75,6 +77,12 @@ export async function archiveList(listId: string): Promise<void> {
   unwrap(await getSupabaseClient().from('shopping_lists').update({ archived_at: new Date().toISOString() }).eq('id', listId).select('id').single());
 }
 
+/** Archives several lists at once (only their owner may). Returns the ids that could not be archived. */
+export async function archiveLists(listIds: string[]): Promise<string[]> {
+  const results = await Promise.allSettled(listIds.map((listId) => archiveList(listId)));
+  return listIds.filter((_, index) => results[index].status === 'rejected');
+}
+
 export async function fetchListItems(listId: string): Promise<ListItem[]> {
   return unwrap(await getSupabaseClient().from('list_items').select(itemSelect).eq('list_id', listId).neq('status', 'archived').order('created_at'));
 }
@@ -103,16 +111,18 @@ export async function searchProducts(query: string, limit = 8): Promise<Tables<'
 }
 
 /** `userId` is the signed-in user; the database overrides created_by with the authenticated user regardless. */
-export async function addItem(userId: string, { id, listId, productName, productId, quantity = 1, unit, budgetedUnitPrice, categoryId, notes }: AddItemInput): Promise<ListItem> {
+export async function addItem(userId: string, { id, listId, productName, productId, quantity = 1, unit, isBulk = false, budgetedUnitPrice, categoryId, notes }: AddItemInput): Promise<ListItem> {
   const product = productId ? { id: productId } : await findOrCreateProduct(productName, userId);
   return unwrap(await getSupabaseClient().from('list_items')
-    .insert({ ...(id ? { id } : {}), list_id: listId, product_id: product.id, quantity, unit, budgeted_unit_price: budgetedUnitPrice, category_id: categoryId ?? null, notes, created_by: userId })
+    .insert({ ...(id ? { id } : {}), list_id: listId, product_id: product.id, quantity, unit, is_bulk: isBulk, budgeted_unit_price: budgetedUnitPrice, category_id: categoryId ?? null, notes, created_by: userId })
     .select(itemSelect).single());
 }
 
-export async function updateItem(itemId: string, { quantity, budgetedUnitPrice, categoryId }: ItemChanges): Promise<void> {
+export async function updateItem(itemId: string, { quantity, unit, budgetedUnitPrice, categoryId, isBulk }: ItemChanges): Promise<void> {
   unwrap(await getSupabaseClient().from('list_items').update({
-    ...(quantity === undefined ? {} : { quantity }), ...(budgetedUnitPrice === undefined ? {} : { budgeted_unit_price: budgetedUnitPrice }), ...(categoryId === undefined ? {} : { category_id: categoryId })
+    ...(quantity === undefined ? {} : { quantity }), ...(budgetedUnitPrice === undefined ? {} : { budgeted_unit_price: budgetedUnitPrice }), ...(categoryId === undefined ? {} : { category_id: categoryId }),
+    ...(isBulk === undefined ? {} : { is_bulk: isBulk }),
+    ...(unit === undefined ? {} : { unit })
   }).eq('id', itemId).select('id').single());
 }
 

@@ -1,21 +1,33 @@
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Switch, Text, View } from 'react-native';
+import { installedVersionLabel, updatesSupported, useAppUpdate } from '@/src/appUpdate';
 import { currencyLabel } from '@/src/currency';
-import { signOut } from '@/src/services/auth';
+import { deleteAccount, signOut } from '@/src/services/auth';
 import { friendlyError } from '@/src/services/errors';
 import { registerDevice, unregisterDevice } from '@/src/notifications';
 import { setPushNotifications } from '@/src/services/push';
 import { setEmailNotifications, setTimezone } from '@/src/services/settings';
 import { useOffline } from '@/src/offline/OfflineProvider';
 import { useSession, useUserId } from '@/src/session';
-import { Button, Card, CurrencyPicker, Heading, palette, Screen, styles } from '@/src/ui';
+import { Button, Card, CurrencyPicker, Field, Heading, palette, Screen, Sheet, styles } from '@/src/ui';
 import { features } from '@/src/features';
 
 export default function Settings() {
   const userId = useUserId();
   const { profile, settings, session, defaultCurrency, changeDefaultCurrency, refreshAccount } = useSession();
   const [busy, setBusy] = useState(false);
+  const update = useAppUpdate();
+  const [checking, setChecking] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const checkForUpdate = async () => {
+    setChecking(true);
+    const result = await update.check();
+    setChecking(false);
+    if (result === 'failed') Alert.alert('Could not check for updates', 'Check your connection and try again.');
+    else if (result) update.prompt();
+    else Alert.alert('You are up to date', `Grocefy ${installedVersionLabel} is the latest version.`);
+  };
   const { ops } = useOffline();
   // Unregister this phone first (while still signed in) so the next person using it gets no pushes for this account.
   const signOutNow = () => unregisterDevice().catch(() => undefined).then(signOut).catch((caught) => Alert.alert('Could not sign out', friendlyError(caught)));
@@ -57,7 +69,44 @@ export default function Settings() {
       <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, lineHeight: 19 }}>Purchases on lists you share, invitations, and monthly reports, on every phone you are signed in on.</Text></View>
       <Switch accessibilityLabel="Push notifications" value={settings?.push_notifications ?? true} disabled={busy || !settings} trackColor={{ true: palette.green }} onValueChange={togglePush}/></View>
     </Card>}
+    <Card><Text style={styles.label}>App version</Text>
+      <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, lineHeight: 19 }}>Grocefy {installedVersionLabel}{update.available ? ` · version ${update.available.version} (build ${update.available.build_number}) is available` : ''}</Text>
+      {updatesSupported && <View style={{ marginTop: 12 }}>{update.available
+        ? <Button label="Update now" icon="cloud-download-outline" onPress={update.prompt}/>
+        : <Button label="Check for updates" variant="soft" icon="refresh" loading={checking} onPress={checkForUpdate}/>}</View>}
+    </Card>
     {features.customCategories && <Button label="Manage categories" variant="soft" icon="pricetags-outline" onPress={() => router.push('/categories')}/>}
     <Button label="Sign out" variant="danger" icon="log-out-outline" onPress={confirmSignOut}/>
+    <Text accessibilityRole="button" onPress={() => setDeleting(true)} style={{ color: palette.red, fontWeight: '700', textAlign: 'center', paddingVertical: 8 }}>Delete account</Text>
+    <DeleteAccountSheet visible={deleting} username={profile?.username} unsynced={ops.length} onClose={() => setDeleting(false)}/>
   </Screen>;
+}
+
+/** Deleting the account for good, after reading what happens and typing DELETE. */
+function DeleteAccountSheet({ visible, username, unsynced, onClose }: { visible: boolean; username?: string; unsynced: number; onClose: () => void }) {
+  const [confirmation, setConfirmation] = useState('');
+  const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
+  useEffect(() => { if (visible) { setConfirmation(''); setError(undefined); } }, [visible]);
+  const confirmed = confirmation.trim().toUpperCase() === 'DELETE';
+  const remove = async () => {
+    setBusy(true); setError(undefined);
+    try {
+      await unregisterDevice().catch(() => undefined);
+      await deleteAccount(); // signs out, which returns to the sign-in screen
+    } catch (caught) { setError(friendlyError(caught)); setBusy(false); }
+  };
+  const point = (text: string) => <Text style={{ color: palette.ink, lineHeight: 20 }}>•  {text}</Text>;
+  return <Sheet visible={visible} title="Delete your account?" subtitle={username ? `@${username} · this cannot be undone` : 'This cannot be undone'} onClose={onClose}>
+    <View style={{ gap: 8 }}>
+      {point('Homes and lists you share pass to the next person in them, so they keep everything.')}
+      {point('Homes and lists only you use are deleted, with their items, purchases, and reports.')}
+      {point('Purchases you made in shared homes stay for the others, without your name.')}
+      {point('Your profile, categories, and settings are deleted.')}
+    </View>
+    {unsynced > 0 && <Text style={{ color: palette.red, fontWeight: '700' }}>{unsynced} {unsynced === 1 ? 'change on this phone has' : 'changes on this phone have'} not synced and will be lost.</Text>}
+    <Field label='Type DELETE to confirm' value={confirmation} onChangeText={setConfirmation} autoCapitalize="none"/>
+    {error && <Text style={{ color: palette.red }}>{error}</Text>}
+    <Button label="Delete my account" variant="danger" icon="trash-outline" disabled={!confirmed} loading={busy} onPress={remove}/>
+    <Button label="Keep my account" variant="soft" onPress={onClose} disabled={busy}/>
+  </Sheet>;
 }

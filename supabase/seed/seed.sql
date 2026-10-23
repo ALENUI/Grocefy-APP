@@ -87,13 +87,15 @@ begin
 end $$;
 
 -- Home inventory for House Shopping: what the household keeps, with what is running low or finished matching the
--- To-buy list above. Both demo users open this home.
+-- To-buy list above. Both demo users open this home. Items on the lists above are already in the home (the To-buy and
+-- purchase triggers add them), so this sets each one's demo status and unit.
 insert into public.home_items (group_id, product_id, status, usual_quantity, unit, created_by)
 select 'd1000000-0000-0000-0000-000000000001', p.id, item.status::public.stock_status, item.quantity, item.unit, 'd0000000-0000-0000-0000-000000000001'
 from (values ('Rice', 'in_stock', 1, 'bag'), ('Cooking Oil', 'low', 1, 'bottle'), ('Tomatoes', 'in_stock', 3, 'kg'), ('Plantains', 'out', 6, null),
              ('Milk', 'low', 2, 'carton'), ('Dish Soap', 'in_stock', 1, 'bottle'), ('Sponges', 'low', 3, null), ('Soap', 'low', 4, 'bar'), ('Toothpaste', 'in_stock', 2, 'tube'))
   item(name, status, quantity, unit)
-join public.products p on p.name = item.name and p.owner_id = 'd0000000-0000-0000-0000-000000000001';
+join public.products p on p.name = item.name and p.owner_id = 'd0000000-0000-0000-0000-000000000001'
+on conflict (group_id, product_id) do update set status = excluded.status, usual_quantity = excluded.usual_quantity, unit = excluded.unit;
 update public.user_settings set current_home_id = 'd1000000-0000-0000-0000-000000000001'
 where user_id in ('d0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000002');
 

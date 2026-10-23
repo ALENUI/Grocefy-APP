@@ -12,7 +12,7 @@ import { features } from '@/src/features';
 function Prices() {
   const [query, setQuery] = useState(''); const [search, setSearch] = useState('');
   useEffect(() => { const timer = setTimeout(() => setSearch(query), 250); return () => clearTimeout(timer); }, [query]);
-  const summaries = useAsync(() => fetchPriceSummaries(search), [search]);
+  const summaries = useAsync(() => fetchPriceSummaries(search), [search], { cacheKey: search.trim() ? undefined : 'prices' });
   return <Screen refreshing={summaries.loading && !!summaries.data} onRefresh={summaries.reload}>
     <BackHeader title="Price book" subtitle="What you last paid, per currency"/>
     <TextInput value={query} onChangeText={setQuery} placeholder="Search products..." placeholderTextColor="#98A39B" style={styles.search} accessibilityLabel="Search products" autoCorrect={false}/>

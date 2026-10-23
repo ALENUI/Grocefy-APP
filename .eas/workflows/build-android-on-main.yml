@@ -14,3 +14,17 @@ jobs:
     params:
       platform: android
       profile: preview
+
+  # Records the finished APK in Supabase (app_releases) so installed apps offer it as an update.
+  # Needs RELEASE_PUBLISH_SECRET in the "preview" EAS environment, matching the Supabase secret of the same name.
+  publish_release:
+    name: Offer the APK to installed apps
+    needs: [build_android]
+    environment: preview
+    env:
+      BUILD_ID: ${{ needs.build_android.outputs.build_id }}
+      BUILD_NUMBER: ${{ needs.build_android.outputs.app_build_version }}
+      APP_VERSION: ${{ needs.build_android.outputs.app_version }}
+    steps:
+      - uses: eas/checkout
+      - run: node scripts/publish-release.mjs
