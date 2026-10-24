@@ -21,6 +21,7 @@ import { useSession, useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
 import { useHome } from '@/src/useHome';
 import { useLive } from '@/src/useLive';
+import { buildSnapshot, updateWidget } from '@/src/widget';
 import { Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, Grid, Heading, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
 
 const statusLabel: Record<StockStatus, string> = { in_stock: 'Full', low: 'Low', out: 'Finished' };
@@ -57,6 +58,10 @@ export default function Home() {
   const { ops, syncedVersion, submit } = useOffline();
   const { reload: reloadItems } = items; const { reload: reloadLists } = lists;
   useEffect(() => { if (syncedVersion) { reloadItems(); reloadLists(); } }, [syncedVersion, reloadItems, reloadLists]);
+  // The home-screen widget shows what this screen shows (offline changes included).
+  useEffect(() => {
+    if (home && items.data && lists.data) updateWidget(buildSnapshot(userId, home, applyHomeQueue(items.data, ops, home.id), lists.data));
+  }, [home, items.data, lists.data, ops, userId]);
 
   const bell = <IconButton icon="notifications-outline" label="Inbox" badge={inbox.data?.unreadCount} onPress={() => router.push('/inbox')}/>;
   if (home === undefined) return <Screen><Heading title="Home" action={bell}/>{homeError ? <ErrorNotice error={homeError} onRetry={reloadHome}/> : <Loading/>}</Screen>;
