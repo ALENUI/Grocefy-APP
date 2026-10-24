@@ -60,9 +60,13 @@ export function IconButton({ icon, onPress, label, badge }: { icon: keyof typeof
 type FieldProps = { label: string; value: string; onChangeText: (v: string) => void; hint?: string; prefix?: string; secure?: boolean; autoCapitalize?: 'none' | 'sentences' | 'words';
   keyboardType?: 'default' | 'numeric' | 'decimal-pad' | 'email-address'; autoComplete?: 'email' | 'password' | 'new-password' | 'username' | 'off'; note?: string };
 export function Field({ label, value, onChangeText, keyboardType = 'default', hint, prefix, secure, autoCapitalize, autoComplete, note }: FieldProps) {
+  // Passwords are hidden until the eye is tapped.
+  const [revealed, setRevealed] = useState(false);
   return <View style={styles.field}><Text style={styles.label}>{label}</Text><View style={styles.inputRow}>{prefix && <Text style={styles.prefix}>{prefix}</Text>}
-    <TextInput value={value} onChangeText={onChangeText} keyboardType={keyboardType} secureTextEntry={secure} autoCapitalize={autoCapitalize ?? (keyboardType === 'email-address' ? 'none' : 'sentences')}
-      autoComplete={autoComplete} autoCorrect={false} placeholderTextColor="#98A39B" style={styles.input} placeholder={hint} accessibilityLabel={label}/></View>
+    <TextInput value={value} onChangeText={onChangeText} keyboardType={keyboardType} secureTextEntry={secure && !revealed} autoCapitalize={autoCapitalize ?? (keyboardType === 'email-address' ? 'none' : 'sentences')}
+      autoComplete={autoComplete} autoCorrect={false} placeholderTextColor="#98A39B" style={styles.input} placeholder={hint} accessibilityLabel={label}/>
+    {secure && <Pressable accessibilityRole="button" accessibilityLabel={revealed ? 'Hide password' : 'Show password'} hitSlop={10} onPress={() => setRevealed(!revealed)} style={{ paddingLeft: 10 }}>
+      <Ionicons name={revealed ? 'eye-off-outline' : 'eye-outline'} size={22} color={palette.muted}/></Pressable>}</View>
     {note && <Text style={styles.note}>{note}</Text>}</View>;
 }
 export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
