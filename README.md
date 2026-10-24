@@ -79,6 +79,8 @@ The Expo app accesses Supabase only through `src/services/` (auth, settings, cat
 
 - **Push delivery** mirrors email. Database events queue rows in `push_outbox` (only for users with push on and a registered phone, and never for the person who made the purchase). The `send-push` Edge Function delivers them through Expo's push service with the same locking, retries, and backoff as email, and deletes tokens Expo reports as unregistered. Devices register only through `register_push_token`; a token signed in by someone else on the same phone moves to them.
 
+- **Home-screen widget (Android):** the "Grocefy · To buy" widget shows the current home, how much is left to buy, and what is running low or finished. The app saves a snapshot whenever Home loads or changes (offline changes included), and the widget draws from it with the app closed. Every 30 minutes, and when its ↻ is tapped, it fetches fresh data with the saved session. Signing out clears it. It is built with `react-native-android-widget` (config plugin in `app.json`, task handler in `src/widget`, registered in `index.ts`), so it needs an installed build (APK or development build), not Expo Go.
+
 ### Configure Supabase
 
 1. Copy `.env.example` to `.env`.

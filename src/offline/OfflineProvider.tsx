@@ -10,6 +10,7 @@ import { purchaseListItem } from '../services/purchases';
 import { useSession } from '../session';
 import { clearCache, setCacheOwner } from './cache';
 import { Outcome, processQueue, QueuedOp, SyncProblem } from './queue';
+import { updateWidget } from '../widget';
 
 type NewOp = QueuedOp extends infer Op ? Op extends QueuedOp ? Omit<Op, 'id' | 'createdAt'> : never : never;
 
@@ -82,7 +83,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   // Load this user's queue; clear the previous user's cached data on sign-out.
   useEffect(() => {
     setCacheOwner(userId);
-    if (!userId && previousUser.current) clearCache(previousUser.current);
+    if (!userId && previousUser.current) { clearCache(previousUser.current); updateWidget(null); }
     previousUser.current = userId;
     queue.current = []; setOps([]); setProblems([]);
     if (!userId) return;
