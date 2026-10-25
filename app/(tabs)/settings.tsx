@@ -10,14 +10,18 @@ import { setPushNotifications } from '@/src/services/push';
 import { setEmailNotifications, setTimezone } from '@/src/services/settings';
 import { useOffline } from '@/src/offline/OfflineProvider';
 import { useSession, useUserId } from '@/src/session';
-import { Button, Card, CurrencyPicker, Field, Heading, palette, Screen, Sheet, styles } from '@/src/ui';
+import { Button, Card, Chip, CurrencyPicker, Field, Heading, palette, Screen, Sheet, styles } from '@/src/ui';
 import { features } from '@/src/features';
+import { ThemePreference, useTheme } from '@/src/theme';
+
+const themeLabels: Record<ThemePreference, string> = { system: 'System', light: 'Light', dark: 'Dark' };
 
 export default function Settings() {
   const userId = useUserId();
   const { profile, settings, session, defaultCurrency, changeDefaultCurrency, refreshAccount } = useSession();
   const [busy, setBusy] = useState(false);
   const update = useAppUpdate();
+  const theme = useTheme();
   const [checking, setChecking] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const checkForUpdate = async () => {
@@ -55,6 +59,12 @@ export default function Settings() {
       <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, marginBottom: 14, lineHeight: 19 }}>Used when you create a home. Existing homes, lists, and purchases keep their currency; nothing is converted.</Text>
       <CurrencyPicker value={defaultCurrency} disabled={busy} onChange={(code) => run(() => changeDefaultCurrency(code))}/>
       <View style={{ marginTop: 14, backgroundColor: palette.pale, padding: 12, borderRadius: 11 }}><Text style={{ color: palette.green, fontWeight: '700' }}>Current default: {currencyLabel(defaultCurrency)}</Text></View>
+    </Card>
+    <Card><Text style={styles.label}>Theme</Text>
+      <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, marginBottom: 14, lineHeight: 19 }}>System follows your phone&apos;s light or dark setting. Kept on this phone.</Text>
+      <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
+        {(['system', 'light', 'dark'] as ThemePreference[]).map((option) => <Chip key={option} label={themeLabels[option]} selected={theme.preference === option} onPress={() => theme.setPreference(option)}/>)}
+      </View>
     </Card>
     {features.financeReports && <Card><Text style={styles.label}>Report timezone</Text>
       <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, lineHeight: 19 }}>Monthly reports start and end at midnight in this timezone. Current: {settings?.timezone ?? 'UTC (not set)'}</Text>

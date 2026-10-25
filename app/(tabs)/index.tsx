@@ -258,7 +258,7 @@ function ItemRow({ item, currencyCode, canEdit, busy, onMark, onEdit }: { item: 
         const selected = item.status === status;
         const tone = status === 'out' ? palette.red : status === 'low' ? palette.orange : palette.green;
         return <Pressable key={status} accessibilityRole="radio" accessibilityState={{ selected, disabled: !canEdit }} disabled={!canEdit || busy} onPress={() => onMark(status)}
-          style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: selected ? tone : palette.line, backgroundColor: selected ? tone : palette.white }}>
+          style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: selected ? tone : palette.line, backgroundColor: selected ? tone : palette.surface }}>
           <Text style={{ color: selected ? palette.white : palette.muted, fontWeight: '700', fontSize: 13 }}>{statusLabel[status]}</Text>
         </Pressable>;
       })}

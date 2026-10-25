@@ -8,7 +8,7 @@ const icon = (name: keyof typeof Ionicons.glyphMap) => function TabIcon({ color,
 
 // Hidden features keep their routes but lose their tab (href: null).
 export default function TabsLayout() {
-  return <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: palette.green, tabBarInactiveTintColor: '#87928A', tabBarStyle: { borderTopColor: '#E2E7E1', height: 64, paddingTop: 6 } }}>
+  return <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: palette.green, tabBarInactiveTintColor: palette.muted, tabBarStyle: { backgroundColor: palette.surface, borderTopColor: palette.line, height: 64, paddingTop: 6 }, sceneStyle: { backgroundColor: palette.cream } }}>
     <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home-outline') }}/>
     <Tabs.Screen name="lists" options={{ title: 'To buy', tabBarIcon: icon('cart-outline') }}/>
     <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: icon('time-outline'), href: features.purchaseHistory ? undefined : null }}/>
