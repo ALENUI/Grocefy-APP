@@ -1,12 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useColorScheme, View } from 'react-native';
+import { readThemePreference, saveThemePreference, ThemePreference } from './themePreference';
 import { applyColorScheme, ColorScheme, colorScheme, palette } from './ui';
+import { redrawWidget } from './widget';
 
-export type ThemePreference = 'system' | 'light' | 'dark';
-const storageKey = 'grocefy:theme';
+export type { ThemePreference } from './themePreference';
 const Context = createContext<{ preference: ThemePreference; scheme: ColorScheme; setPreference: (preference: ThemePreference) => void } | undefined>(undefined);
 
 /** Light, dark, or following the phone. The choice is kept on this phone. */
@@ -15,13 +15,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
-    AsyncStorage.getItem(storageKey).then((saved) => { if (saved === 'light' || saved === 'dark' || saved === 'system') setPreferenceState(saved); })
-      .catch(() => undefined).finally(() => setLoaded(true));
+    readThemePreference().then(setPreferenceState).finally(() => setLoaded(true));
   }, []);
   const scheme: ColorScheme = preference === 'system' ? (system === 'dark' ? 'dark' : 'light') : preference;
   // Before anything below renders, so every screen reads the right colors.
   if (scheme !== colorScheme) applyColorScheme(scheme);
-  const setPreference = (next: ThemePreference) => { setPreferenceState(next); AsyncStorage.setItem(storageKey, next).catch(() => undefined); };
+  // The home-screen widget follows the same choice.
+  const setPreference = (next: ThemePreference) => { setPreferenceState(next); saveThemePreference(next).then(redrawWidget); };
   // A moment's wait for the saved choice avoids flashing the other theme at startup.
   if (!loaded) return null;
   return <Context.Provider value={{ preference, scheme, setPreference }}>{children}</Context.Provider>;
