@@ -1,5 +1,4 @@
 import { ErrorBoundaryProps, router, Stack, useSegments } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -13,6 +12,7 @@ import { SessionProvider, useSession } from '@/src/session';
 import { Button, Loading, palette, styles } from '@/src/ui';
 import { features } from '@/src/features';
 import { setTimezone } from '@/src/services/settings';
+import { Themed, ThemeProvider } from '@/src/theme';
 
 // Screens reachable while signed out. reset-password stays reachable after its email link signs the user in.
 const publicScreens = ['sign-in', 'sign-up', 'forgot-password', 'auth-callback', 'reset-password'];
@@ -62,10 +62,10 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
     <Text style={[styles.subtitle, { lineHeight: 21 }]}>This screen hit an unexpected problem. Your lists and purchases are safe.</Text>
     {__DEV__ && <Text style={{ color: palette.red, fontSize: 12 }}>{error.message}</Text>}
     <Button label="Try again" icon="refresh" onPress={retry}/>
-    <Button label="Go to my lists" variant="soft" onPress={() => router.replace('/')}/>
+    <Button label="Go to Home" variant="soft" onPress={() => router.replace('/')}/>
   </View>;
 }
 
 export default function Layout() {
-  return <GestureHandlerRootView style={{ flex: 1 }}><KeyboardProvider><SafeAreaProvider><SessionProvider><OfflineProvider><StatusBar style="dark"/><AppUpdateProvider><AuthGate/></AppUpdateProvider></OfflineProvider></SessionProvider></SafeAreaProvider></KeyboardProvider></GestureHandlerRootView>;
+  return <GestureHandlerRootView style={{ flex: 1 }}><KeyboardProvider><SafeAreaProvider><SessionProvider><OfflineProvider><ThemeProvider><AppUpdateProvider><Themed><AuthGate/></Themed></AppUpdateProvider></ThemeProvider></OfflineProvider></SessionProvider></SafeAreaProvider></KeyboardProvider></GestureHandlerRootView>;
 }

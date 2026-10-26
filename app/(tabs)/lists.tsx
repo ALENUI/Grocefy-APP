@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -13,7 +13,8 @@ import { useUserId } from '@/src/session';
 import { useAsync } from '@/src/useAsync';
 import { useHome } from '@/src/useHome';
 import { useLive } from '@/src/useLive';
-import { Button, Card, EmptyState, ErrorNotice, Grid, Heading, IconButton, Loading, palette, Screen } from '@/src/ui';
+import { Button, Card, EmptyState, ErrorNotice, Grid, Heading, IconButton, Loading, palette, Screen, styles } from '@/src/ui';
+import { timeAgo } from '@/src/activity';
 
 /** The home's shopping lists: what needs buying, ready to tick off at the market. */
 export default function Lists() {
@@ -36,20 +37,21 @@ export default function Lists() {
         {features.priceInsights && <IconButton icon="pricetags-outline" label="Price book" onPress={() => router.push('/prices')}/>}
         {(features.multipleHomes || homeId) && <IconButton icon="add" label="New list" onPress={newList}/>}
       </View>}/>
-    {lists.stale && <Text style={{ color: palette.muted }}>Offline · showing your lists as saved {lists.savedAt ? new Date(lists.savedAt).toLocaleString() : 'earlier'}.</Text>}
+    {lists.stale && <Text style={{ color: palette.muted }}>Offline · showing your lists as saved {lists.savedAt ? timeAgo(lists.savedAt) : 'earlier'}.</Text>}
     {features.multipleHomes && <Pressable onPress={() => router.push('/groups')}><Card style={{ backgroundColor: palette.pale, borderColor: palette.pale }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><View><Text style={{ color: palette.green, fontWeight: '800', fontSize: 16 }}>Shopping groups</Text><Text style={{ color: palette.muted, marginTop: 4 }}>Organize lists and people by purpose</Text></View><Ionicons name="people-outline" size={25} color={palette.green}/></View></Card></Pressable>}
     {!features.multipleHomes && home === null && <EmptyState title="Set up your home first" message="Create your home on the Home tab, or accept an invitation from someone you live with." action={<Button label="Go to Home" variant="soft" onPress={() => router.navigate('/')}/>}/>}
     {toBuy.length > 0 && <Card style={{ backgroundColor: palette.green, borderColor: palette.green }}>
-      <Text style={{ color: '#D5F1DF', fontWeight: '700', fontSize: 13 }}>TOTAL TO BUY</Text>
-      {toBuy.map(([code, amount]) => <Text key={code} style={{ color: 'white', fontWeight: '800', fontSize: 28, marginTop: 4 }}>{formatCurrency(amount, code)}</Text>)}
-      <Text style={{ color: '#D5F1DF', marginTop: 4 }}>{itemsLeft ? `${itemsLeft} ${itemsLeft === 1 ? 'item' : 'items'} left across ${lists.data?.length} ${lists.data?.length === 1 ? 'list' : 'lists'}` : 'Everything is bought'}</Text>
+      <Text style={[styles.sectionLabel, { color: palette.onGreen }]}>TOTAL TO BUY</Text>
+      {toBuy.map(([code, amount]) => <Text key={code} style={{ color: palette.white, fontWeight: '800', fontSize: 28, marginTop: 4 }}>{formatCurrency(amount, code)}</Text>)}
+      <Text style={{ color: palette.onGreen, marginTop: 4 }}>{itemsLeft ? `${itemsLeft} ${itemsLeft === 1 ? 'item' : 'items'} left across ${lists.data?.length} ${lists.data?.length === 1 ? 'list' : 'lists'}` : 'Everything is bought'}</Text>
     </Card>}
     {lists.error ? <ErrorNotice error={lists.error} onRetry={lists.reload}/> : !lists.data ? <Loading/> : lists.data.length === 0
-      ? (home !== null && <EmptyState title="No lists yet" message="Mark items as running low on the Home tab, or create a list for a shopping trip."/>)
+      ? ((features.multipleHomes || home) && <EmptyState title="No lists yet" message="Mark items as running low on the Home tab, or create a list for a shopping trip."
+          action={<Button label="New list" icon="add" onPress={newList}/>}/>)
       : <>
         {selection.selecting && <SelectionBar selection={selection}/>}
         <Grid>{lists.data.map((list) => <ListCard key={list.id} list={list} showGroup={features.multipleHomes} {...selection.cardProps(list)}/>)}</Grid>
       </>}
-    {(features.multipleHomes || homeId) && <Button label="New list" icon="add-circle-outline" variant="soft" onPress={newList}/>}
+    {(features.multipleHomes || homeId) && !!lists.data?.length && <Button label="New list" icon="add" variant="soft" onPress={newList}/>}
   </Screen>;
 }

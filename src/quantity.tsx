@@ -17,7 +17,7 @@ export const priceUnit = (isBulk: boolean, unit?: string | null) => (unit ? `per
 const commonUnits = ['kg', 'g', 'L', 'ml', 'bag', 'bottle', 'pack', 'carton', 'crate', 'tin', 'dozen', 'bunch'];
 
 export function QuantityBadge({ isBulk }: { isBulk: boolean }) {
-  return <View style={{ backgroundColor: isBulk ? '#FDF1E4' : palette.pale, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+  return <View style={{ backgroundColor: isBulk ? palette.orangePale : palette.pale, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
     <Text style={{ color: isBulk ? palette.orange : palette.green, fontSize: 12, fontWeight: '800' }}>{isBulk ? 'Bulk' : 'Per item'}</Text></View>;
 }
 

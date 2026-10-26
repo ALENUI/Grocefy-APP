@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { amountInputValue, formatCurrency, parseAmount } from '@/src/currency';
 import { features } from '@/src/features';
 import { CategoryOption, CategoryPicker, generalCategory } from '@/src/CategoryPicker';
@@ -22,7 +22,8 @@ import { useAsync } from '@/src/useAsync';
 import { useHome } from '@/src/useHome';
 import { useLive } from '@/src/useLive';
 import { buildSnapshot, updateWidget } from '@/src/widget';
-import { Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, Grid, Heading, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
+import { Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, Grid, Heading, IconButton, Loading, palette, Screen, SectionLabel, Sheet, styles } from '@/src/ui';
+import { timeAgo } from '@/src/activity';
 
 const statusLabel: Record<StockStatus, string> = { in_stock: 'Full', low: 'Low', out: 'Finished' };
 // Home shows the first few To-buy lists; the rest are one tap away on the To-buy tab.
@@ -105,22 +106,20 @@ export default function Home() {
         <IconButton icon="people-outline" label="People in this home" onPress={() => router.push({ pathname: '/members', params: { type: 'group', id: home.id, name: home.name } })}/>
         {canEdit && <IconButton icon="add" label="Add item" onPress={() => setAdding(true)}/>}
       </View>}/>
-    {items.stale && <Text style={{ color: palette.muted }}>Offline · showing your home as saved {items.savedAt ? new Date(items.savedAt).toLocaleString() : 'earlier'}.</Text>}
+    {items.stale && <Text style={{ color: palette.muted }}>Offline · showing your home as saved {items.savedAt ? timeAgo(items.savedAt) : 'earlier'}.</Text>}
     {features.monthlySpending && <Card style={{ backgroundColor: palette.green, borderColor: palette.green }}>
-      <Text style={{ color: '#D5F1DF', fontWeight: '700', fontSize: 13 }}>SPENT THIS MONTH</Text>
+      <Text style={[styles.sectionLabel, { color: palette.onGreen }]}>SPENT THIS MONTH</Text>
       {(spending.data?.length ? spending.data : [{ currencyCode: home.currency_code, purchased: 0, purchaseCount: 0 }]).map((month) =>
-        <Text key={month.currencyCode} style={{ color: 'white', fontWeight: '800', fontSize: 28, marginTop: 4 }}>{formatCurrency(month.purchased, month.currencyCode)}</Text>)}
-      <Text style={{ color: '#D5F1DF', marginTop: 4 }}>{needed.length ? `${needed.length} ${needed.length === 1 ? 'thing needs' : 'things need'} buying` : 'Nothing needs buying'}</Text>
+        <Text key={month.currencyCode} style={{ color: palette.white, fontWeight: '800', fontSize: 28, marginTop: 4 }}>{formatCurrency(month.purchased, month.currencyCode)}</Text>)}
+      <Text style={{ color: palette.onGreen, marginTop: 4 }}>{needed.length ? `${needed.length} ${needed.length === 1 ? 'thing needs' : 'things need'} buying` : 'Nothing needs buying'}</Text>
     </Card>}
     {notice && <Card style={{ backgroundColor: notice.error ? palette.redPale : palette.pale, borderColor: notice.error ? palette.redPale : palette.pale }}>
       <Text style={{ color: notice.error ? palette.red : palette.ink, fontWeight: '700' }}>{notice.text}</Text>
-      {notice.listId && <Text onPress={() => router.push(`/list/${notice.listId}`)} style={{ color: palette.green, fontWeight: '800', marginTop: 6 }}>Open To-buy list</Text>}
+      {notice.listId && <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.push(`/list/${notice.listId}`)} style={{ alignSelf: 'flex-start', marginTop: 6 }}><Text style={{ color: palette.green, fontWeight: '800' }}>Open To-buy list</Text></Pressable>}
     </Card>}
     {toBuy.length > 0 && <View style={{ gap: 8 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>TO BUY</Text>
-        {!selection.selecting && <Text accessibilityRole="button" onPress={() => selection.start()} style={{ color: palette.green, fontWeight: '800', fontSize: 13 }}>Select</Text>}
-      </View>
+      <SectionLabel title="To buy" action={!selection.selecting && <Pressable accessibilityRole="button" accessibilityLabel="Select lists to delete" hitSlop={10} onPress={() => selection.start()}>
+        <Text style={{ color: palette.green, fontWeight: '800', fontSize: 13 }}>Select</Text></Pressable>}/>
       {selection.selecting && <SelectionBar selection={selection}/>}
       {/* While selecting, every list is shown so several can be deleted from here. */}
       <Grid>{(selection.selecting ? toBuy : toBuy.slice(0, homeListLimit)).map((list) => <ListCard key={list.id} list={list} showGroup={false} {...selection.cardProps(list)}/>)}</Grid>
@@ -151,7 +150,7 @@ function Section({ title, items, render }: { title: string; items: DisplayHomeIt
     if (group) group.items.push(item); else all.push({ name, items: [item] });
     return all;
   }, []).sort((a, b) => Number(a.name === 'General') - Number(b.name === 'General') || a.name.localeCompare(b.name));
-  return <View style={{ gap: 8 }}><Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>{title.toUpperCase()}</Text>
+  return <View style={{ gap: 8 }}><SectionLabel title={title}/>
     <Card style={{ paddingVertical: 4 }}>{groups.map((group, index) => <View key={group.name}>
       <Text style={{ color: palette.green, fontWeight: '800', fontSize: 12, marginTop: index ? 12 : 8 }}>{group.name}</Text>
       {group.items.map(render)}
@@ -246,7 +245,7 @@ function RestockSheet({ restock, home, userId, lists, categories, inUse, onCateg
 
 function ItemRow({ item, currencyCode, canEdit, busy, onMark, onEdit }: { item: DisplayHomeItem; currencyCode: string; canEdit: boolean; busy: boolean; onMark: (status: StockStatus) => void; onEdit: () => void }) {
   return <View style={{ paddingVertical: 12, gap: 8, opacity: busy ? 0.5 : 1 }}>
-    <Pressable disabled={!canEdit} onPress={onEdit} accessibilityHint="Edit this item">
+    <Pressable disabled={!canEdit} onPress={onEdit} accessibilityRole={canEdit ? 'button' : undefined} accessibilityHint={canEdit ? 'Edit this item' : undefined}>
       <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>{item.product?.name ?? 'Item'}</Text>
       <Text style={{ color: palette.muted, marginTop: 2, fontSize: 13 }}>
         {/* The full quantity is what was bought last time (or set by hand); it is also what goes on the To-buy list. */}
@@ -258,7 +257,7 @@ function ItemRow({ item, currencyCode, canEdit, busy, onMark, onEdit }: { item: 
         const selected = item.status === status;
         const tone = status === 'out' ? palette.red : status === 'low' ? palette.orange : palette.green;
         return <Pressable key={status} accessibilityRole="radio" accessibilityState={{ selected, disabled: !canEdit }} disabled={!canEdit || busy} onPress={() => onMark(status)}
-          style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: selected ? tone : palette.line, backgroundColor: selected ? tone : palette.white }}>
+          style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: selected ? tone : palette.line, backgroundColor: selected ? tone : palette.surface }}>
           <Text style={{ color: selected ? palette.white : palette.muted, fontWeight: '700', fontSize: 13 }}>{statusLabel[status]}</Text>
         </Pressable>;
       })}
@@ -318,7 +317,7 @@ function AddItemSheet({ visible, homeId, userId, categories, inUse, onCategoryCr
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
     <CategoryPicker categories={categories} inUse={inUse} value={selected} onChange={setCategoryId} userId={userId} onCreated={onCategoryCreated}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
-    <Button label="Add item" onPress={add} loading={busy}/>
+    <Button label="Add item" icon="add" onPress={add} loading={busy}/>
   </Sheet>;
 }
 
@@ -338,13 +337,17 @@ function EditItemSheet({ item, userId, categories, inUse, onCategoryCreated, onC
     run(() => submit({ kind: 'updateHomeItem', listId: homeListId(item.group_id), label: `Edit ${item.product?.name ?? 'item'}`, itemId: item.id, changes,
       categoryName: categories.find((category) => category.id === categoryId)?.name ?? null }, () => updateHomeItem(item.id, changes)));
   };
-  return <Sheet visible={!!item} title={item?.product?.name ?? 'Item'} onClose={onClose}>
-    <Field label="Full quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/>
+  const confirmRemove = () => item && Alert.alert(`Remove ${item.product?.name ?? 'this item'}?`, 'It is taken out of your home for everyone. Past purchases are kept.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Remove', style: 'destructive', onPress: () => run(() => submit({ kind: 'archiveHomeItem', listId: homeListId(item.group_id), label: `Remove ${item.product?.name ?? 'item'}`, itemId: item.id }, () => archiveHomeItem(item.id))) }
+  ]);
+  return <Sheet visible={!!item} title={item?.product?.name ?? 'Item'} subtitle="Edit item" onClose={onClose}>
+    <Field label="Full quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" note="How many you buy to fill up. Updated each time you buy it."/>
     <UnitField value={unit} onChange={setUnit}/>
-    <CategoryPicker categories={categories} inUse={inUse} value={categoryId ?? generalCategory(categories)?.id ?? null} onChange={setCategoryId} userId={userId} onCreated={onCategoryCreated}/>
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
+    <CategoryPicker categories={categories} inUse={inUse} value={categoryId ?? generalCategory(categories)?.id ?? null} onChange={setCategoryId} userId={userId} onCreated={onCategoryCreated}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
     <Button label="Save" onPress={save} loading={busy}/>
-    <Button label="Remove from home" variant="danger" icon="trash-outline" disabled={busy} onPress={() => item && run(() => submit({ kind: 'archiveHomeItem', listId: homeListId(item.group_id), label: `Remove ${item.product?.name ?? 'item'}`, itemId: item.id }, () => archiveHomeItem(item.id)))}/>
+    <Button label="Remove from home" variant="danger" icon="trash-outline" disabled={busy} onPress={confirmRemove}/>
   </Sheet>;
 }

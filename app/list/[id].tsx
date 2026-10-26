@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
@@ -6,7 +6,7 @@ import { amountInputValue, formatCurrency, parseAmount } from '@/src/currency';
 import { ActivityFeed } from '@/src/ActivityFeed';
 import { Category } from '@/src/services/categories';
 import { features } from '@/src/features';
-import { friendlyError } from '@/src/services/errors';
+import { friendlyError, ServiceError } from '@/src/services/errors';
 import {
   addItem, archiveList, duplicateList, findProduct, getPriceSuggestion, ListItem, ListWithContext, PriceSuggestion, removeItem, searchProducts, updateItem, updateList
 } from '@/src/services/lists';
@@ -20,7 +20,9 @@ import { useLive } from '@/src/useLive';
 import { CategoryPicker, generalCategory, CategoryOption as PickerOption } from '@/src/CategoryPicker';
 import { listDetailKey, loadListDetail } from '@/src/listDetail';
 import { priceUnit, QuantityBadge, quantityLabel, QuantityTypeChips, UnitField } from '@/src/quantity';
-import { BackHeader, Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, Grid, IconButton, Loading, palette, Screen, Sheet, styles } from '@/src/ui';
+import { BackHeader, Button, Card, Chip, CurrencyPicker, EmptyState, ErrorNotice, Field, Grid, IconButton, Loading, palette, Screen, SectionLabel, Sheet, styles } from '@/src/ui';
+import { shortDate, timeAgo } from '@/src/activity';
+import { roleLabel } from '@/src/roles';
 
 const parseQuantity = (input: string) => { const value = Number(input.replace(',', '.')); return Number.isFinite(value) && value > 0 ? value : null; };
 
@@ -40,7 +42,11 @@ export default function ListDetail() {
   const [configuring, setConfiguring] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
 
-  if (state.error && !state.data) return <Screen><BackHeader title="Shopping list"/><ErrorNotice error={state.error} onRetry={state.reload}/></Screen>;
+  // A deleted list, one no longer shared with you, or a broken link: retrying will not help.
+  const gone = state.error instanceof ServiceError && (state.error.code === 'NOT_FOUND' || state.error.code === 'VALIDATION_ERROR' || state.error.code === 'FORBIDDEN');
+  if (state.error && !state.data) return <Screen><BackHeader title="Shopping list"/>{gone
+    ? <EmptyState title="This list is not available" message="It may have been deleted, or it is no longer shared with you." action={<Button label="Go to To buy" variant="soft" onPress={() => router.replace('/lists')}/>}/>
+    : <ErrorNotice error={state.error} onRetry={state.reload}/>}</Screen>;
   if (!state.data) return <Screen><BackHeader title="Shopping list"/><Loading/></Screen>;
   const { list, role, categories, activity } = state.data;
   const items = applyQueue(state.data.items, ops, id);
@@ -79,38 +85,39 @@ export default function ListDetail() {
   ]);
 
   return <Screen refreshing={state.loading} onRefresh={state.reload}>
-    <BackHeader title={list.name} subtitle={[list.group?.name, list.category?.name, code, role && `You: ${role}`].filter(Boolean).join(' · ')}
+    <BackHeader title={list.name} subtitle={[list.group?.name, list.category?.name, features.listCurrency && code, role && `You: ${roleLabel(role)}`].filter(Boolean).join(' · ')}
       action={<View style={{ flexDirection: 'row', gap: 8 }}>
         {canEdit && <IconButton icon="options-outline" label="List settings" onPress={() => setConfiguring(true)}/>}
         {features.listSharing && role === 'owner' && <IconButton icon="person-add-outline" label="Share list" onPress={() => router.push({ pathname: '/members', params: { type: 'list', id: list.id, name: list.name } })}/>}
       </View>}/>
     {!!state.error && <ErrorNotice error={state.error} onRetry={state.reload}/>}
-    {state.stale && <Text style={{ color: palette.muted }}>Offline · showing this list as saved {state.savedAt ? new Date(state.savedAt).toLocaleString() : 'earlier'}. Changes you make will sync later.</Text>}
+    {state.stale && <Text style={{ color: palette.muted }}>Offline · showing this list as saved {state.savedAt ? timeAgo(state.savedAt) : 'earlier'}. Changes you make will sync later.</Text>}
     <Card style={{ backgroundColor: palette.pale }}>
-      <Text style={{ color: palette.green, fontWeight: '800', fontSize: 12 }}>TOTAL TO BUY · {code}</Text>
+      <Text style={{ color: palette.green, fontWeight: '800', fontSize: 12 }}>TOTAL TO BUY</Text>
       <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 26, marginTop: 4 }}>{formatCurrency(toBuyTotal, code)}</Text>
-      <Text style={{ color: palette.muted, marginTop: 5 }}>{pending.length} {pending.length === 1 ? 'item' : 'items'} left · List budget {formatCurrency(totals?.budgeted_total ?? 0, code)} · Paid {formatCurrency(totals?.purchased_total ?? 0, code)}</Text>
-      {(totals?.purchased_count ?? 0) > 0 && <Text style={{ color: saved >= 0 ? palette.green : palette.red, marginTop: 4, fontWeight: '700' }}>{saved >= 0 ? `Saved ${formatCurrency(saved, code)}` : `Over budget by ${formatCurrency(-saved, code)}`} on purchased items</Text>}
+      <Text style={{ color: palette.muted, marginTop: 5 }}>{pending.length} {pending.length === 1 ? 'item' : 'items'} left{(totals?.purchased_count ?? 0) > 0 ? ` · ${formatCurrency(totals?.purchased_total ?? 0, code)} paid so far` : ''}</Text>
+      {(totals?.purchased_count ?? 0) > 0 && saved !== 0 && <Text style={{ color: saved > 0 ? palette.green : palette.red, marginTop: 4, fontWeight: '700' }}>{saved > 0 ? `${formatCurrency(saved, code)} less than expected` : `${formatCurrency(-saved, code)} more than expected`} on what is bought</Text>}
       {pendingChanges > 0 && <Text style={{ color: palette.muted, marginTop: 6, fontSize: 12 }}>Totals update after {pendingChanges} {pendingChanges === 1 ? 'change syncs' : 'changes sync'}.</Text>}
     </Card>
-    {role === 'viewer' && <Text style={{ color: palette.muted }}>You can view this list. Ask the owner for Editor or Partner access to make changes.</Text>}
-    {role === 'editor' && <Text style={{ color: palette.muted }}>Editors can add items and budgets. Partners and the owner confirm purchases.</Text>}
-    {items.length === 0 && <EmptyState title="No items yet" message={canEdit ? 'Add what you need and set a budget for each item.' : 'Items added to this list will appear here.'}/>}
+    {role === 'viewer' && <Text style={{ color: palette.muted }}>You can see this list but not change it. {features.editorRole ? 'Ask the owner for Editor or Partner access.' : 'Ask the person who set up the home to make you a Member.'}</Text>}
+    {role === 'editor' && <Text style={{ color: palette.muted }}>Editors can add items and prices. Partners and the owner tick off what is bought.</Text>}
+    {items.length === 0 && <EmptyState title="Nothing on this list yet" message={canEdit ? 'Add what you need and what you expect to pay, or mark things low on the Home tab.' : 'Items added to this list will appear here.'}/>}
     {sections.map((section) => <View key={section.name} style={{ gap: 10 }}>
-      {(sections.length > 1 || section.name !== 'General') && <Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>{section.name.toUpperCase()}</Text>}
+      {(sections.length > 1 || section.name !== 'General') && <SectionLabel title={section.name}/>}
       <Grid gap={10}>{section.items.map((item) => <Card key={item.id}><View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
         <Pressable disabled={!canEdit} onPress={() => setEditing(item)} style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><Text style={{ color: palette.ink, fontSize: 16, fontWeight: '800', flexShrink: 1 }}>{item.product?.name ?? 'Item'}</Text><QuantityBadge isBulk={item.is_bulk}/></View>
           <Text style={{ color: palette.muted, marginTop: 5 }}>{quantityLabel(item)} × {formatCurrency(item.budgeted_unit_price, code)} {priceUnit(item.is_bulk, item.unit)} = {formatCurrency(item.budgeted_total ?? 0, code)}{item.pendingSync ? ' · waiting to sync' : ''}</Text></Pressable>
-        {canEdit && <Pressable accessibilityLabel={`Remove ${item.product?.name}`} hitSlop={6} onPress={() => confirmRemove(item)} style={{ backgroundColor: palette.redPale, padding: 12, borderRadius: 12 }}><Ionicons name="trash-outline" color={palette.red} size={20}/></Pressable>}
-        {canPurchase && <Pressable accessibilityLabel={`Purchase ${item.product?.name}`} onPress={() => setBuying(item)} style={{ backgroundColor: palette.pale, padding: 12, borderRadius: 12 }}><Ionicons name="checkmark" color={palette.green} size={22}/></Pressable>}
+        {canEdit && <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${item.product?.name ?? 'item'}`} hitSlop={6} onPress={() => confirmRemove(item)} style={{ backgroundColor: palette.redPale, padding: 12, borderRadius: 12 }}><Ionicons name="trash-outline" color={palette.red} size={20}/></Pressable>}
+        {canPurchase && <Pressable accessibilityRole="button" accessibilityLabel={`Mark ${item.product?.name ?? 'item'} as bought`} onPress={() => setBuying(item)} style={{ backgroundColor: palette.pale, padding: 12, borderRadius: 12 }}><Ionicons name="checkmark" color={palette.green} size={22}/></Pressable>}
       </View></Card>)}</Grid>
     </View>)}
     {canEdit && list.archived_at === null && <Button label="Add item" icon="add" onPress={() => setAdding(true)}/>}
-    {purchased.length > 0 && <View style={{ gap: 10 }}><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16, marginTop: 6 }}>Purchased</Text>
-      {purchased.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityHint="Opens price history" disabled={!features.priceInsights} onPress={() => item.product && router.push(`/product/${item.product.id}`)}><Card style={{ opacity: 0.85 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><View style={{ flex: 1 }}>
+    {purchased.length > 0 && <View style={{ gap: 10, marginTop: 6 }}><SectionLabel title="Bought"/>
+      {purchased.map((item) => <Pressable key={item.id} accessibilityRole={features.priceInsights ? 'button' : undefined} accessibilityHint={features.priceInsights ? 'Opens price history' : undefined}
+        disabled={!features.priceInsights} onPress={() => item.product && router.push(`/product/${item.product.id}`)}><Card style={{ opacity: 0.85 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><View style={{ flex: 1 }}>
         <Text style={{ color: palette.ink, fontSize: 16, fontWeight: '800', textDecorationLine: 'line-through' }}>{item.product?.name ?? 'Item'}</Text>
-        <Text style={{ color: palette.muted, marginTop: 5 }}>Budget {formatCurrency(item.budgeted_total ?? 0, code)} · {item.purchased_at ? new Date(item.purchased_at).toLocaleDateString() : ''}{item.pendingSync ? ' · waiting to sync' : ''}</Text></View>
+        <Text style={{ color: palette.muted, marginTop: 5 }}>{quantityLabel(item)} · expected {formatCurrency(item.budgeted_total ?? 0, code)}{item.purchased_at ? ` · ${shortDate(item.purchased_at)}` : ''}{item.pendingSync ? ' · waiting to sync' : ''}</Text></View>
         <Ionicons name="checkmark-circle" color={palette.green} size={24}/></View></Card></Pressable>)}</View>}
     {features.duplicateLists && items.length > 0 && <Button label="Duplicate list" variant="soft" icon="copy-outline" onPress={() => setDuplicating(true)}/>}
     {role === 'owner' && <Button label="Archive list" variant="danger" icon="archive-outline" onPress={confirmArchive}/>}
@@ -192,10 +199,10 @@ function AddItemSheet({ visible, onClose, list, categories, inUse, userId, onAdd
       style={{ paddingVertical: 11, borderTopWidth: index ? 1 : 0, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       <Ionicons name="time-outline" size={16} color={palette.muted}/><Text style={{ color: palette.ink, fontWeight: '600' }}>{match.name}</Text></Pressable>)}</Card>}
     {suggestion && (suggestion.suggestedUnitPrice !== null
-      ? <Card style={{ backgroundColor: palette.pale, borderColor: palette.pale }}><Text style={{ color: palette.green, fontWeight: '800' }}>Last paid {formatCurrency(suggestion.suggestedUnitPrice, currencyCode)} per unit</Text>
-          <Text onPress={() => setPrice(amountInputValue(suggestion.suggestedUnitPrice ?? 0, currencyCode))} style={{ color: palette.green, fontWeight: '800', marginTop: 8 }}>Use this price</Text></Card>
+      ? <Card style={{ backgroundColor: palette.pale, borderColor: palette.pale }}><Text style={{ color: palette.green, fontWeight: '800' }}>Last paid {formatCurrency(suggestion.suggestedUnitPrice, currencyCode)}</Text>
+          <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setPrice(amountInputValue(suggestion.suggestedUnitPrice ?? 0, currencyCode))} style={{ alignSelf: 'flex-start', marginTop: 8 }}><Text style={{ color: palette.green, fontWeight: '800' }}>Use this price</Text></Pressable></Card>
       : <Card style={{ backgroundColor: palette.pale, borderColor: palette.pale }}><Text style={{ color: palette.ink, fontWeight: '800' }}>Last paid {formatCurrency(suggestion.latestUnitPrice, suggestion.latestCurrencyCode)} ({suggestion.latestCurrencyCode})</Text>
-          <Text style={{ color: palette.muted, marginTop: 4 }}>This list uses {currencyCode}. Enter a budget in {currencyCode}; Grocefy does not convert currencies.</Text></Card>)}
+          <Text style={{ color: palette.muted, marginTop: 4 }}>This list uses {currencyCode}. Enter the price in {currencyCode}; Grocefy does not convert currencies.</Text></Card>)}
     <View style={{ flexDirection: 'row', gap: 10 }}>
       <View style={{ width: 96 }}><Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad"/></View>
       <View style={{ flex: 1 }}><Field label={`Price ${priceUnit(isBulk, unit.trim())}`} prefix={currencyCode} value={price} onChangeText={setPrice} keyboardType="decimal-pad" hint="0"/></View>
@@ -204,7 +211,7 @@ function AddItemSheet({ visible, onClose, list, categories, inUse, userId, onAdd
     <QuantityTypeChips isBulk={isBulk} onChange={setIsBulk}/>
     <CategoryPicker categories={categories} inUse={inUse} value={selected} onChange={setCategoryId} userId={userId} onCreated={onCategoryCreated}/>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
-    <Button label="Add to list" onPress={save} loading={busy}/>
+    <Button label="Add to list" icon="add" onPress={save} loading={busy}/>
   </Sheet>;
 }
 
@@ -304,21 +311,21 @@ function PurchaseSheet({ item, listId, currencyCode, onClose, onPurchased }: { i
   };
   if (result) {
     const difference = result.budget - result.paid;
-    return <Sheet visible={!!item} title={`✓ ${item?.product?.name ?? 'Item'} purchased`} onClose={onClose}>
+    return <Sheet visible={!!item} title={`${item?.product?.name ?? 'Item'} bought`} onClose={onClose}>
       <Card><Text style={{ color: palette.muted }}>Paid</Text><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 24, marginTop: 4 }}>{formatCurrency(result.paid, currencyCode)}</Text>
-        <Text style={{ color: difference >= 0 ? palette.green : palette.red, fontWeight: '700', marginTop: 8 }}>{difference >= 0 ? `Saved ${formatCurrency(difference, currencyCode)}` : `Over budget by ${formatCurrency(-difference, currencyCode)}`}</Text>
+        <Text style={{ color: difference >= 0 ? palette.green : palette.red, fontWeight: '700', marginTop: 8 }}>{difference === 0 ? 'Exactly what you expected' : difference > 0 ? `${formatCurrency(difference, currencyCode)} less than expected` : `${formatCurrency(-difference, currencyCode)} more than expected`}</Text>
         {result.offline && <Text style={{ color: palette.muted, marginTop: 8 }}>Saved on this phone. It syncs automatically when you are back online, with the time you bought it.</Text>}</Card>
       <Button label="Done" onPress={onClose}/>
     </Sheet>;
   }
-  return <Sheet visible={!!item} title="Confirm purchase" subtitle={item ? `${item.product?.name ?? 'Item'} · ${quantityLabel(item)}` : undefined} onClose={onClose}>
-    <Text style={{ color: palette.muted }}>Budgeted: <Text style={{ color: palette.ink, fontWeight: '800' }}>{formatCurrency(budget, currencyCode)}</Text></Text>
+  return <Sheet visible={!!item} title="Mark as bought" subtitle={item ? `${item.product?.name ?? 'Item'} · ${quantityLabel(item)}` : undefined} onClose={onClose}>
+    <Text style={{ color: palette.muted }}>Expected: <Text style={{ color: palette.ink, fontWeight: '800' }}>{formatCurrency(budget, currencyCode)}</Text></Text>
     <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-      <Chip label={`Paid the budget (${formatCurrency(budget, currencyCode)})`} selected={useBudget} onPress={() => setUseBudget(true)}/>
+      <Chip label={`Paid ${formatCurrency(budget, currencyCode)}`} selected={useBudget} onPress={() => setUseBudget(true)}/>
       <Chip label="Paid a different amount" selected={!useBudget} onPress={() => setUseBudget(false)}/>
     </View>
     {!useBudget && <Field label="Actual amount paid" prefix={currencyCode} value={actual} onChangeText={setActual} keyboardType="decimal-pad" hint={amountInputValue(budget, currencyCode)}/>}
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
-    <Button label="Confirm purchase" onPress={confirm} loading={busy}/>
+    <Button label="Mark as bought" icon="checkmark" onPress={confirm} loading={busy}/>
   </Sheet>;
 }

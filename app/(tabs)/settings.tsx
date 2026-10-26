@@ -1,8 +1,7 @@
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, Switch, Text, View } from 'react-native';
 import { installedVersionLabel, updatesSupported, useAppUpdate } from '@/src/appUpdate';
-import { currencyLabel } from '@/src/currency';
 import { deleteAccount, signOut } from '@/src/services/auth';
 import { friendlyError } from '@/src/services/errors';
 import { registerDevice, unregisterDevice } from '@/src/notifications';
@@ -10,14 +9,18 @@ import { setPushNotifications } from '@/src/services/push';
 import { setEmailNotifications, setTimezone } from '@/src/services/settings';
 import { useOffline } from '@/src/offline/OfflineProvider';
 import { useSession, useUserId } from '@/src/session';
-import { Button, Card, CurrencyPicker, Field, Heading, palette, Screen, Sheet, styles } from '@/src/ui';
+import { Button, Card, Chip, CurrencyPicker, Field, Heading, palette, Screen, Sheet, styles } from '@/src/ui';
 import { features } from '@/src/features';
+import { ThemePreference, useTheme } from '@/src/theme';
+
+const themeLabels: Record<ThemePreference, string> = { system: 'System', light: 'Light', dark: 'Dark' };
 
 export default function Settings() {
   const userId = useUserId();
   const { profile, settings, session, defaultCurrency, changeDefaultCurrency, refreshAccount } = useSession();
   const [busy, setBusy] = useState(false);
   const update = useAppUpdate();
+  const theme = useTheme();
   const [checking, setChecking] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const checkForUpdate = async () => {
@@ -37,7 +40,7 @@ export default function Settings() {
       if (result === 'denied') Alert.alert('Notifications are off for Grocefy', 'Allow notifications for Grocefy in your phone settings, then try again.');
       if (result === 'unsupported') Alert.alert('Not available here', 'Push notifications need a physical iPhone or Android phone.');
       if (result === 'expo-go') Alert.alert('Not available in Expo Go', 'On Android, push notifications need a development build of Grocefy. Everything else works in Expo Go.');
-      if (result === 'not-configured') Alert.alert('Push is not set up for this build', 'This build has no Expo project ID. See the README section on push notifications.');
+      if (result === 'not-configured') Alert.alert('Not available in this version', 'Push notifications are not available in this version of Grocefy.');
       if (result !== 'registered') return;
     }
     await setPushNotifications(userId, enabled);
@@ -54,7 +57,12 @@ export default function Settings() {
     <Card><Text style={styles.label}>Default currency</Text>
       <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, marginBottom: 14, lineHeight: 19 }}>Used when you create a home. Existing homes, lists, and purchases keep their currency; nothing is converted.</Text>
       <CurrencyPicker value={defaultCurrency} disabled={busy} onChange={(code) => run(() => changeDefaultCurrency(code))}/>
-      <View style={{ marginTop: 14, backgroundColor: palette.pale, padding: 12, borderRadius: 11 }}><Text style={{ color: palette.green, fontWeight: '700' }}>Current default: {currencyLabel(defaultCurrency)}</Text></View>
+    </Card>
+    <Card><Text style={styles.label}>Theme</Text>
+      <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, marginBottom: 14, lineHeight: 19 }}>System follows your phone&apos;s light or dark setting. Kept on this phone.</Text>
+      <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
+        {(['system', 'light', 'dark'] as ThemePreference[]).map((option) => <Chip key={option} label={themeLabels[option]} selected={theme.preference === option} onPress={() => theme.setPreference(option)}/>)}
+      </View>
     </Card>
     {features.financeReports && <Card><Text style={styles.label}>Report timezone</Text>
       <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, lineHeight: 19 }}>Monthly reports start and end at midnight in this timezone. Current: {settings?.timezone ?? 'UTC (not set)'}</Text>
@@ -66,7 +74,7 @@ export default function Settings() {
         onValueChange={(enabled) => run(async () => { await setEmailNotifications(userId, enabled); await refreshAccount(); })}/></View>
     </Card>}
     {features.pushNotifications && <Card><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><View style={{ flex: 1 }}><Text style={styles.label}>Push notifications</Text>
-      <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, lineHeight: 19 }}>Purchases on lists you share, invitations, and monthly reports, on every phone you are signed in on.</Text></View>
+      <Text style={{ color: palette.muted, fontSize: 13, marginTop: 5, lineHeight: 19 }}>When someone at home marks something low or finished, buys it, or invites you. On every phone you are signed in on.</Text></View>
       <Switch accessibilityLabel="Push notifications" value={settings?.push_notifications ?? true} disabled={busy || !settings} trackColor={{ true: palette.green }} onValueChange={togglePush}/></View>
     </Card>}
     <Card><Text style={styles.label}>App version</Text>
@@ -77,7 +85,7 @@ export default function Settings() {
     </Card>
     {features.customCategories && <Button label="Manage categories" variant="soft" icon="pricetags-outline" onPress={() => router.push('/categories')}/>}
     <Button label="Sign out" variant="danger" icon="log-out-outline" onPress={confirmSignOut}/>
-    <Text accessibilityRole="button" onPress={() => setDeleting(true)} style={{ color: palette.red, fontWeight: '700', textAlign: 'center', paddingVertical: 8 }}>Delete account</Text>
+    <Pressable accessibilityRole="button" hitSlop={4} onPress={() => setDeleting(true)} style={{ alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 }}><Text style={{ color: palette.red, fontWeight: '700' }}>Delete account</Text></Pressable>
     <DeleteAccountSheet visible={deleting} username={profile?.username} unsynced={ops.length} onClose={() => setDeleting(false)}/>
   </Screen>;
 }

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
@@ -7,6 +7,7 @@ import { fetchPriceSummaries, PriceSummary, priceChange } from '@/src/services/i
 import { useAsync } from '@/src/useAsync';
 import { BackHeader, Card, EmptyState, ErrorNotice, Loading, palette, Screen, styles } from '@/src/ui';
 import { features } from '@/src/features';
+import { shortDate } from '@/src/activity';
 
 /** Price book: the last price paid for everything you buy, with the change since the previous purchase. */
 function Prices() {
@@ -15,7 +16,7 @@ function Prices() {
   const summaries = useAsync(() => fetchPriceSummaries(search), [search], { cacheKey: search.trim() ? undefined : 'prices' });
   return <Screen refreshing={summaries.loading && !!summaries.data} onRefresh={summaries.reload}>
     <BackHeader title="Price book" subtitle="What you last paid, per currency"/>
-    <TextInput value={query} onChangeText={setQuery} placeholder="Search products..." placeholderTextColor="#98A39B" style={styles.search} accessibilityLabel="Search products" autoCorrect={false}/>
+    <TextInput value={query} onChangeText={setQuery} placeholder="Search products..." placeholderTextColor={palette.faint} style={styles.search} accessibilityLabel="Search products" autoCorrect={false}/>
     {summaries.error ? <ErrorNotice error={summaries.error} onRetry={summaries.reload}/> : !summaries.data ? <Loading/> : summaries.data.length === 0
       ? <EmptyState title={search ? 'No matching products' : 'No prices yet'} message="Prices are recorded each time an item is purchased from a list."/>
       : <Card style={{ paddingVertical: 4 }}>{summaries.data.map((summary, index) => <PriceRow key={`${summary.productId}-${summary.currencyCode}`} summary={summary} first={index === 0}/>)}</Card>}
@@ -28,7 +29,7 @@ function PriceRow({ summary, first }: { summary: PriceSummary; first: boolean })
     style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: first ? 0 : 1, borderColor: palette.line }}>
     <View style={{ flex: 1 }}>
       <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>{summary.productName}</Text>
-      <Text style={{ color: palette.muted, marginTop: 3, fontSize: 13 }}>{summary.purchaseCount} {summary.purchaseCount === 1 ? 'purchase' : 'purchases'} · {new Date(summary.lastPurchasedAt).toLocaleDateString()}</Text>
+      <Text style={{ color: palette.muted, marginTop: 3, fontSize: 13 }}>{summary.purchaseCount} {summary.purchaseCount === 1 ? 'purchase' : 'purchases'} · {shortDate(summary.lastPurchasedAt)}</Text>
     </View>
     <View style={{ alignItems: 'flex-end' }}>
       <Text style={{ color: palette.ink, fontWeight: '800' }}>{formatCurrency(summary.lastPrice, summary.currencyCode)}</Text>
@@ -37,7 +38,7 @@ function PriceRow({ summary, first }: { summary: PriceSummary; first: boolean })
         <Text style={{ color: palette.muted, fontSize: 12 }}>{Math.abs(change).toFixed(1)}% vs previous</Text>
       </View>}
     </View>
-    <Ionicons name="chevron-forward" size={18} color="#A3ADA6"/>
+    <Ionicons name="chevron-forward" size={18} color={palette.faint}/>
   </Pressable>;
 }
 

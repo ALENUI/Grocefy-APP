@@ -8,7 +8,7 @@
       "ios"
     ],
     "orientation": "default",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "scheme": "grocefy",
     "plugins": [
       "expo-router",

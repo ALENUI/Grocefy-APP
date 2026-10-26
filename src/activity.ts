@@ -43,5 +43,11 @@ export function timeAgo(iso: string, now = Date.now()): string {
   if (minutes < 1) return 'just now';
   if (minutes < 60) return `${minutes} min ago`;
   if (minutes < 24 * 60) return `${Math.floor(minutes / 60)} h ago`;
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return shortDate(iso);
+}
+
+/** "26 Oct" (with the year only when it is not this year). */
+export function shortDate(iso: string, now = new Date()): string {
+  const date = new Date(iso);
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
 }
