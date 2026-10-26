@@ -8,7 +8,7 @@
       "ios"
     ],
     "orientation": "default",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "scheme": "grocefy",
     "plugins": [
       "expo-router",
@@ -31,6 +31,26 @@
           "imageWidth": 160,
           "resizeMode": "contain",
           "backgroundColor": "#F7F8F3"
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "ToBuy",
+              "label": "Grocefy · To buy",
+              "description": "What is running low or finished at home, and how much is left to buy.",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "maxResizeWidth": "500dp",
+              "maxResizeHeight": "500dp",
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
         }
       ]
     ],

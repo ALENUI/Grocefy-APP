@@ -9,8 +9,10 @@ import { useUserId } from '@/src/session';
 import { watchTables } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
-import { BackHeader, Button, Card, Chip, ErrorNotice, Field, Loading, palette, Screen, Sheet } from '@/src/ui';
+import { BackHeader, Button, Card, Chip, ErrorNotice, Field, Loading, palette, Screen, SectionLabel, Sheet } from '@/src/ui';
 import { features } from '@/src/features';
+import { shortDate } from '@/src/activity';
+import { roleLabel } from '@/src/roles';
 
 const roles: { role: MemberRole; description: string }[] = features.editorRole ? [
   { role: 'viewer', description: 'Sees items, prices, and totals' },
@@ -20,7 +22,6 @@ const roles: { role: MemberRole; description: string }[] = features.editorRole ?
   { role: 'partner', description: 'Adds items, marks what is running out, and buys' },
   { role: 'viewer', description: 'Sees everything but cannot change it' }
 ];
-const roleLabel = (role: string) => (features.editorRole ? role.charAt(0).toUpperCase() + role.slice(1) : role === 'partner' ? 'Member' : role === 'viewer' ? 'View only' : role === 'editor' ? 'Editor' : role);
 
 /** Members and invitations for a group or a list: /members?type=group|list&id=…&name=… */
 export default function Members() {
@@ -41,7 +42,7 @@ export default function Members() {
   ]);
 
   return <Screen refreshing={state.loading && !!state.data} onRefresh={state.reload}>
-    <BackHeader title="Members" subtitle={`${name ?? ''} · ${type === 'group' ? (features.multipleHomes ? 'Group members can access every list in the group' : 'People who live here') : 'List members'}`}/>
+    <BackHeader title="Members" subtitle={[name, type === 'group' ? (features.multipleHomes ? 'Group members can access every list in the group' : 'People who live here') : 'List members'].filter(Boolean).join(' · ')}/>
     {state.error ? <ErrorNotice error={state.error} onRetry={state.reload}/> : !state.data ? <Loading/> : <>
       {state.data.members.length === 0 && <Text style={{ color: palette.muted }}>No members yet. {state.data.isOwner ? 'Invite people by username or email.' : ''}</Text>}
       {state.data.members.map((member) => <Card key={member.id}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
@@ -50,10 +51,10 @@ export default function Members() {
         {state.data?.isOwner && <Button label="Manage" variant="soft" onPress={() => setManaging(member)}/>}
         {!state.data?.isOwner && member.userId === userId && <Button label="Leave" variant="danger" onPress={() => leave(member)}/>}
       </View></Card>)}
-      {state.data.invitations.length > 0 && <View style={{ gap: 10 }}><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>Pending invitations</Text>
+      {state.data.invitations.length > 0 && <View style={{ gap: 10 }}><SectionLabel title="Pending invitations"/>
         {state.data.invitations.map((invitation) => <Card key={invitation.id}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
           <View style={{ flex: 1 }}><Text style={{ color: palette.ink, fontWeight: '700' }}>{invitation.invitee_email ?? 'Invited user'}</Text>
-            <Text style={{ color: palette.muted, marginTop: 3 }}>{roleLabel(invitation.role)} · expires {new Date(invitation.expires_at).toLocaleDateString()}</Text></View>
+            <Text style={{ color: palette.muted, marginTop: 3 }}>{roleLabel(invitation.role)} · expires {shortDate(invitation.expires_at)}</Text></View>
           <Button label="Cancel" variant="danger" onPress={() => cancelInvitation(invitation.id).then(state.reload).catch((caught) => Alert.alert('Could not cancel', friendlyError(caught)))}/>
         </View></Card>)}</View>}
       {state.data.isOwner && <Button label="Invite someone" icon="person-add-outline" onPress={() => setInviting(true)}/>}
@@ -83,10 +84,12 @@ function InviteSheet({ visible, type, id, onClose, onInvited }: { visible: boole
 function ManageSheet({ member, type, onClose, onChanged }: { member: Member | null; type: ResourceType; onClose: () => void; onChanged: () => void }) {
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
   const run = async (action: () => Promise<void>) => { setBusy(true); setError(undefined); try { await action(); onChanged(); onClose(); } catch (caught) { setError(friendlyError(caught)); } finally { setBusy(false); } };
+  const confirmRemove = () => member && Alert.alert(`Remove ${member.profile?.display_name ?? 'this member'}?`, 'They lose access straight away. Their past purchases are kept.', [
+    { text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => run(() => removeMember(type, member.id)) }]);
   return <Sheet visible={!!member} title={member?.profile?.display_name ?? 'Member'} subtitle={`Current role: ${member ? roleLabel(member.role) : ''}`} onClose={onClose}>
     <View style={{ gap: 8 }}>{roles.map((entry) => <Chip key={entry.role} label={`${roleLabel(entry.role)} — ${entry.description}`} selected={member?.role === entry.role}
       onPress={() => member && entry.role !== member.role && run(() => changeMemberRole(type, member.id, entry.role))}/>)}</View>
     {error && <Text style={{ color: palette.red }}>{error}</Text>}
-    <Button label="Remove member" variant="danger" icon="person-remove-outline" loading={busy} onPress={() => member && run(() => removeMember(type, member.id))}/>
+    <Button label="Remove member" variant="danger" icon="person-remove-outline" loading={busy} onPress={confirmRemove}/>
   </Sheet>;
 }

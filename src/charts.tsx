@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { formatCurrency } from './currency';
@@ -6,7 +6,8 @@ import { palette } from './ui';
 
 // Chart colors, validated with the dataviz skill's palette checker (light surface, CVD-separated: ΔE 21).
 // Text never uses these: labels and values stay in the ink tokens.
-const series = { paid: palette.green, budget: '#2a78d6' };
+// A getter, so the green follows the light or dark theme.
+const series = { get paid() { return palette.green; }, budget: '#2a78d6' };
 const plotHeight = 112;
 const maxColumnWidth = 24;
 
