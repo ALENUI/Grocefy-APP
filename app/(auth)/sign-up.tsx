@@ -19,12 +19,12 @@ export default function SignUp() {
   };
   if (checkEmail) return <Screen><BackHeader title="Check your email"/><EmptyState title="Confirm your address" message={`We sent a confirmation link to ${email.trim()}. Open it on this device to finish creating your account.`}
     action={<Button label="Back to sign in" variant="soft" onPress={() => router.replace('/sign-in')}/>}/></Screen>;
-  return <Screen><BackHeader title="Create account" subtitle="Your lists, budgets, and history in one place"/>
+  return <Screen><BackHeader title="Create account" subtitle="One home and one To-buy list, shared with the people you live with"/>
     <Card><View style={{ gap: 14 }}>
       <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoComplete="email" hint="you@example.com"/>
       <Field label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" autoComplete="username" hint="e.g. amara_k" note="Others can invite you by this name."/>
       <Field label="Password" value={password} onChangeText={setPassword} secure autoCapitalize="none" autoComplete="new-password" note="At least 8 characters."/>
-      <View style={styles.field}><Text style={styles.label}>Default currency</Text><CurrencyPicker value={currency} onChange={setCurrency}/><Text style={{ color: palette.muted, fontSize: 12 }}>New lists use this currency. You can change it later in Settings.</Text></View>
+      <View style={styles.field}><Text style={styles.label}>Default currency</Text><CurrencyPicker value={currency} onChange={setCurrency}/><Text style={styles.note}>Prices in your home use this currency. You can change the default later in Settings.</Text></View>
       {error && <Text style={{ color: palette.red }}>{error}</Text>}
       <Button label="Create account" onPress={submit} loading={busy}/>
     </View></Card>

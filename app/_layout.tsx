@@ -62,7 +62,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
     <Text style={[styles.subtitle, { lineHeight: 21 }]}>This screen hit an unexpected problem. Your lists and purchases are safe.</Text>
     {__DEV__ && <Text style={{ color: palette.red, fontSize: 12 }}>{error.message}</Text>}
     <Button label="Try again" icon="refresh" onPress={retry}/>
-    <Button label="Go to my lists" variant="soft" onPress={() => router.replace('/')}/>
+    <Button label="Go to Home" variant="soft" onPress={() => router.replace('/')}/>
   </View>;
 }
 

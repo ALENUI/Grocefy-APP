@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import { friendlyError } from '@/src/services/errors';
 import { watchInbox } from '@/src/services/realtime';
 import { pushPermissionStatus, registerDevice } from '@/src/notifications';
@@ -10,6 +10,8 @@ import { useLive } from '@/src/useLive';
 import { BackHeader, Button, Card, EmptyState, ErrorNotice, Loading, palette, Screen } from '@/src/ui';
 import { features } from '@/src/features';
 import { setCurrentHome } from '@/src/services/home';
+import { shortDate, timeAgo } from '@/src/activity';
+import { groupNoun, roleLabel } from '@/src/roles';
 
 /** Invitations received by the user and their notifications. */
 export default function Inbox() {
@@ -37,21 +39,22 @@ export default function Inbox() {
       action={state.data?.notifications.some((notification) => !notification.read_at) ? <Button label="Mark all read" variant="soft" onPress={() => markAllNotificationsRead(userId).then(state.reload).catch(() => undefined)}/> : undefined}/>
     {askPush && <Card style={{ backgroundColor: palette.pale, borderColor: palette.pale }}>
       <Text style={{ color: palette.ink, fontWeight: '800' }}>Get these on your phone</Text>
-      <Text style={{ color: palette.muted, marginTop: 4 }}>Be notified when partners buy items, and of invitations and monthly reports.</Text>
+      <Text style={{ color: palette.muted, marginTop: 4 }}>Know when someone at home marks something low or finished, buys it, or invites you.</Text>
       <View style={{ marginTop: 12 }}><Button label="Turn on push notifications" icon="notifications-outline" onPress={() => registerDevice({ ask: true }).catch(() => undefined).finally(() => setAskPush(false))}/></View>
     </Card>}
     {state.error ? <ErrorNotice error={state.error} onRetry={state.reload}/> : !state.data ? <Loading/> : <>
       {state.data.invitations.map((invitation) => <Card key={invitation.id}>
-        <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>Join {invitation.resource_name ?? `a ${invitation.resource_type}`}</Text>
-        <Text style={{ color: palette.muted, marginTop: 4 }}>{invitation.resource_type === 'group' ? 'Group' : 'List'} · Role: {invitation.role} · expires {new Date(invitation.expires_at).toLocaleDateString()}</Text>
+        <Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>Join {invitation.resource_name ?? `a ${invitation.resource_type === 'group' ? groupNoun : 'list'}`}</Text>
+        <Text style={{ color: palette.muted, marginTop: 4 }}>{invitation.resource_type === 'group' ? (groupNoun === 'home' ? 'Home' : 'Group') : 'List'} · {roleLabel(invitation.role)} · expires {shortDate(invitation.expires_at)}</Text>
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
           <View style={{ flex: 1 }}><Button label="Accept" loading={answering === invitation.id} onPress={() => respond(invitation.id, true)}/></View>
           <View style={{ flex: 1 }}><Button label="Decline" variant="soft" disabled={answering === invitation.id} onPress={() => respond(invitation.id, false)}/></View>
         </View></Card>)}
       {state.data.invitations.length === 0 && state.data.notifications.length === 0 && <EmptyState title="All caught up" message="Invitations and updates about your lists will appear here."/>}
-      {state.data.notifications.map((notification) => <Card key={notification.id} style={notification.read_at ? undefined : { borderColor: palette.green }}>
-        <Text onPress={() => open(notification.id, !!notification.read_at)} style={{ color: palette.ink, fontWeight: notification.read_at ? '600' : '800' }}>{notification.title}</Text>
-        <Text style={{ color: palette.muted, marginTop: 4 }}>{notification.message} · {new Date(notification.created_at).toLocaleDateString()}</Text></Card>)}
+      {state.data.notifications.map((notification) => <Pressable key={notification.id} accessibilityRole="button" accessibilityHint={notification.read_at ? undefined : 'Marks it as read'}
+        disabled={!!notification.read_at} onPress={() => open(notification.id, !!notification.read_at)}><Card style={notification.read_at ? undefined : { borderColor: palette.green }}>
+        <Text style={{ color: palette.ink, fontWeight: notification.read_at ? '600' : '800' }}>{notification.title}</Text>
+        <Text style={{ color: palette.muted, marginTop: 4 }}>{notification.message} · {timeAgo(notification.created_at)}</Text></Card></Pressable>)}
     </>}
   </Screen>;
 }

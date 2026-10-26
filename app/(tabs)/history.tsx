@@ -7,11 +7,19 @@ import { fetchPurchases, PurchaseWithProduct } from '@/src/services/purchases';
 import { watchTables } from '@/src/services/realtime';
 import { useAsync } from '@/src/useAsync';
 import { useLive } from '@/src/useLive';
-import { Button, Card, EmptyState, ErrorNotice, Heading, Loading, palette, Screen } from '@/src/ui';
+import { Button, Card, EmptyState, ErrorNotice, Heading, Loading, palette, Screen, SectionLabel } from '@/src/ui';
 import { features } from '@/src/features';
 
 const pageSize = 50;
 const dayKey = (iso: string) => { const date = new Date(iso); return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`; };
+/** "Today", "Yesterday", then "Sat, 24 Oct" (with the year when it is not this year). */
+function dayLabel(iso: string, now = new Date()) {
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  if (dayKey(iso) === dayKey(now.toISOString())) return 'Today';
+  if (dayKey(iso) === dayKey(yesterday.toISOString())) return 'Yesterday';
+  const date = new Date(iso);
+  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+}
 
 export default function PurchaseHistory() {
   const [older, setOlder] = useState<PurchaseWithProduct[]>([]);
@@ -32,20 +40,21 @@ export default function PurchaseHistory() {
     const key = dayKey(purchase.purchased_at);
     const last = all[all.length - 1];
     if (last?.key === key) last.entries.push(purchase);
-    else all.push({ key, label: new Date(purchase.purchased_at).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }), entries: [purchase] });
+    else all.push({ key, label: dayLabel(purchase.purchased_at), entries: [purchase] });
     return all;
   }, []);
 
   return <Screen refreshing={first.loading && !!first.data} onRefresh={first.reload}>
-    <Heading title="Purchased" subtitle="Every amount keeps the currency it was paid in"/>
+    <Heading title="History" subtitle="Everything bought, newest first"/>
     {first.error ? <ErrorNotice error={first.error} onRetry={first.reload}/> : !first.data ? <Loading/> : purchases.length === 0
-      ? <EmptyState title="No purchases yet" message="Confirm an item purchase from a shopping list to build your history and price memory."/>
-      : days.map((day) => <View key={day.key} style={{ gap: 8 }}><Text style={{ color: palette.muted, fontWeight: '800', fontSize: 13 }}>{day.label.toUpperCase()}</Text>
-        {day.entries.map((purchase) => { const difference = purchase.budgeted_amount - purchase.purchased_amount; return <Pressable key={purchase.id} accessibilityRole="button" disabled={!features.priceInsights || !purchase.product} onPress={() => purchase.product && router.push(`/product/${purchase.product.id}`)}><Card><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+      ? <EmptyState title="Nothing bought yet" message="Tick items off a To-buy list as you buy them, and they show up here with what you paid."/>
+      : days.map((day) => <View key={day.key} style={{ gap: 8 }}><SectionLabel title={day.label}/>
+        {day.entries.map((purchase) => { const difference = purchase.budgeted_amount - purchase.purchased_amount; const linked = features.priceInsights && !!purchase.product;
+          return <Pressable key={purchase.id} accessibilityRole={linked ? 'button' : undefined} disabled={!linked} onPress={() => purchase.product && router.push(`/product/${purchase.product.id}`)}><Card><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
           <View style={{ flex: 1 }}><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>{purchase.product?.name ?? 'Item'}</Text>
-            <Text style={{ color: palette.muted, marginTop: 4 }}>{purchase.list?.name ?? 'Former list'} · {Number(purchase.quantity)} × · budget {formatCurrency(purchase.budgeted_amount, purchase.currency_code)}</Text></View>
-          <View style={{ alignItems: 'flex-end' }}><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>{formatCurrency(purchase.purchased_amount, purchase.currency_code)}</Text>
-            {difference !== 0 && <Text style={{ color: difference > 0 ? palette.green : palette.red, fontSize: 12, marginTop: 3 }}>{difference > 0 ? `saved ${formatCurrency(difference, purchase.currency_code)}` : `over ${formatCurrency(-difference, purchase.currency_code)}`}</Text>}</View>
+            <Text style={{ color: palette.muted, marginTop: 4 }}>{purchase.list?.name ?? 'Deleted list'} · quantity {Number(purchase.quantity)}</Text></View>
+          <View style={{ alignItems: 'flex-end', flexShrink: 0 }}><Text style={{ color: palette.ink, fontWeight: '800', fontSize: 16 }}>{formatCurrency(purchase.purchased_amount, purchase.currency_code)}</Text>
+            {difference !== 0 && <Text style={{ color: difference > 0 ? palette.green : palette.red, fontSize: 12, marginTop: 3 }}>{difference > 0 ? `${formatCurrency(difference, purchase.currency_code)} under` : `${formatCurrency(-difference, purchase.currency_code)} over`}</Text>}</View>
         </View></Card></Pressable>; })}</View>)}
     {moreError && <Text style={{ color: palette.red }}>{moreError}</Text>}
     {hasMore && purchases.length > 0 && <Button label="Load older purchases" variant="soft" loading={loadingMore} onPress={loadMore}/>}

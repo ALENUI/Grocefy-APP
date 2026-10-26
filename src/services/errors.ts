@@ -31,7 +31,7 @@ export function toServiceError(error: { message: string; code?: string }): Servi
 const friendlyMessages: Record<ServiceErrorCode, string> = {
   UNAUTHORIZED: 'Please sign in again.',
   FORBIDDEN: 'Your role does not allow this action.',
-  NOT_FOUND: 'That item no longer exists or is not shared with you.',
+  NOT_FOUND: 'This no longer exists, or it is not shared with you.',
   VALIDATION_ERROR: 'Some of the details are not valid. Please check and try again.',
   ALREADY_PURCHASED: 'This item has already been purchased.',
   INVALID_CURRENCY: 'That currency is not available.',

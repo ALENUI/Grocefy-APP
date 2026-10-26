@@ -1,6 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
 import { ColorValue } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { features } from '@/src/features';
 import { palette } from '@/src/ui';
 
@@ -8,7 +9,9 @@ const icon = (name: keyof typeof Ionicons.glyphMap) => function TabIcon({ color,
 
 // Hidden features keep their routes but lose their tab (href: null).
 export default function TabsLayout() {
-  return <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: palette.green, tabBarInactiveTintColor: palette.muted, tabBarStyle: { backgroundColor: palette.surface, borderTopColor: palette.line, height: 64, paddingTop: 6 }, sceneStyle: { backgroundColor: palette.cream } }}>
+  // A fixed height replaces the one that includes the gesture bar / home indicator, so it is added back here.
+  const { bottom } = useSafeAreaInsets();
+  return <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: palette.green, tabBarInactiveTintColor: palette.muted, tabBarStyle: { backgroundColor: palette.surface, borderTopColor: palette.line, height: 64 + bottom, paddingTop: 6, paddingBottom: bottom }, sceneStyle: { backgroundColor: palette.cream } }}>
     <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home-outline') }}/>
     <Tabs.Screen name="lists" options={{ title: 'To buy', tabBarIcon: icon('cart-outline') }}/>
     <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: icon('time-outline'), href: features.purchaseHistory ? undefined : null }}/>
